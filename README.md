@@ -1,6 +1,6 @@
 # Retro Hub Launcher
 
-A lightweight and modern retro ROM launcher written in Python with PySide6, designed to integrate with RetroArch via Flatpak and handle launching various systems (Super Nintendo, Mega Drive, NES, Game Boy, etc.) with full gamepad support.
+A lightweight and modern retro ROM launcher written in Python with PySide6, designed to integrate with RetroArch via Flatpak and handle launching various systems with full gamepad support.
 
 ---
 
@@ -17,7 +17,7 @@ A lightweight and modern retro ROM launcher written in Python with PySide6, desi
 Follow these steps to set up the environment and install all necessary dependencies on Debian 13 X11.
 
 ### 1. Install System Packages and Python
-Open the terminal and run this command to install Python, pip, Qt6 libraries, and gamepad support (pygame):
+Open the terminal and run this command to install Python, pip, Qt6 libraries, gamepad support (pygame), and Flatpak:
 
 sudo apt update && sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyside6 python3-pygame flatpak
 
@@ -36,32 +36,32 @@ The launcher is configured to run emulators using RetroArch via Flatpak.
 
 ## How to Import Games (Automatic Import)
 
-**Do not create manual folder structures inside `roms/`.** L'applicazione utilizza un worker automatico (`worker.py`) che gestisce tutto tramite i database ufficiali di Libretro (file DAT)[cite: 4].
+You do not need to manually create complex directory structures inside the `roms/` folder. The application uses an automated background worker (`worker.py`) that handles everything through official Libretro databases (DAT files).
 
-1. Vai nella cartella dell'app e apri (o crea) la cartella **`import/`**.
-2. Al suo interno, crea una sottocartella con il nome della piattaforma (ad esempio **`snes`**, **`megadrive`**, **`nes`**, ecc.)[cite: 4].
-3. Metti i tuoi file (in formato `.zip` o estensioni supportate come `.sfc`, `.md`, `.nes`) direttamente dentro quella sottocartella (es. `import/snes/gioco.zip`)[cite: 4].
-4. Quando avvii l'app o ricarichi le ROM, il worker integrato leggerà automaticamente i file, scaricherà i metadati corretti, creerà la struttura definitiva dentro **`roms/`** e scaricherà le copertine ufficiali (`cover.png`)[cite: 4].
+1. Go to the application directory and open (or create) the **`import/`** folder.
+2. Inside it, create a subfolder named after the platform (for example **`snes`**, **`megadrive`**, **`nes`**, etc.).
+3. Place your files in **`.zip`** format (or supported uncompressed ROMs like `.sfc`, `.md`, `.nes`) directly inside that subfolder (e.g., `import/snes/game.zip`).
+4. When you launch the application or refresh the ROM library, the built-in worker will automatically read the files, download the correct metadata, create the final structure inside **`roms/`**, and download official box art covers (`cover.png`).
 
 ---
 
-## User Interface & Controls
+## Interface and Usage
 
-- **Left Panel (Search & List):** Type in the search bar to filter games in real-time. Use the game list to browse your library.
-- **Center Panel (Details & Actions):** Displays metadata (Year, Platform, Region) and cover art. Click **Play** (or press the confirmation button) to launch the game, and **Favorite** to toggle it in your favorites.
-- **Right Panel (Platforms):** Switch between "All games", "Favorites", and specific platforms.
-- **Menu Bar:** Use *File > Refresh ROMs* to reload your library, or *Settings* to change the ROM folder and language (English / Italian).
+- **Left Panel (Search & List):** Type in the search bar to filter games in real-time. Use the list to browse your library.
+- **Center Panel (Details & Actions):** Displays metadata (Year, Platform, Region) and cover art. Click **Play** to start the game, or **Favorite** to toggle it in your favorites.
+- **Right Panel (Platforms):** Filter the view between "All games", "Favorites", and specific platforms.
+- **Menu Bar:** Use *File > Refresh ROMs* to reload your library, or *Settings* to change the ROM folder or language.
 
 ### Gamepad Controls
-The launcher fully supports gamepads connected via Linux (`/dev/input/js*`):
-- **D-Pad / Left Stick:** Navigate through the game list or platform menu.
+The launcher supports controllers connected via Linux (`/dev/input/js*`):
+- **D-Pad / Left Stick:** Navigate through games or the platform menu.
 - **Button A (Bottom):** Launch the selected game.
-- **Button B (Right):** Toggle the game as a favorite.
+- **Button B (Right):** Add or remove the game from favorites.
 
 ---
 
 ## Launching the Launcher
 
 1. Make sure you have `launcher.py` and `worker.py` in the same folder.
-2. Start the program by running:
+2. Start the program by running from the terminal:
    python3 launcher.py
