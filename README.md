@@ -36,14 +36,12 @@ The launcher is configured to run emulators using RetroArch via Flatpak.
 
 ## How to Import Games (Automatic Import)
 
-**Do not create manual folder structures inside `roms/`.** The application features an automated background worker (`worker.py`) that handles everything for you using official Libretro databases (DAT files).
+**Do not create manual folder structures inside `roms/`.** L'applicazione utilizza un worker automatico (`worker.py`) che gestisce tutto tramite i database ufficiali di Libretro (file DAT)[cite: 4].
 
-1. Simply take your ROM files (e.g., `.sfc`, `.nes`, `.md`, `.gba`) and drop them directly into the **`import/`** folder located in the launcher's directory[cite: 4].
-2. (Optional) You can also organize them into subfolders inside `import/` (like `import/snes/`, `import/megadrive/`)[cite: 4].
-3. When you launch the application, the background worker will automatically:
-   - Match and download official metadata from Libretro DAT files[cite: 4].
-   - Create the correct system and game directory structure inside **`roms/`**[cite: 4].
-   - Download official box art covers (`cover.png`) for your games[cite: 4].
+1. Vai nella cartella dell'app e apri (o crea) la cartella **`import/`**.
+2. Al suo interno, crea una sottocartella con il nome della piattaforma (ad esempio **`snes`**, **`megadrive`**, **`nes`**, ecc.)[cite: 4].
+3. Metti i tuoi file (in formato `.zip` o estensioni supportate come `.sfc`, `.md`, `.nes`) direttamente dentro quella sottocartella (es. `import/snes/gioco.zip`)[cite: 4].
+4. Quando avvii l'app o ricarichi le ROM, il worker integrato leggerà automaticamente i file, scaricherà i metadati corretti, creerà la struttura definitiva dentro **`roms/`** e scaricherà le copertine ufficiali (`cover.png`)[cite: 4].
 
 ---
 
