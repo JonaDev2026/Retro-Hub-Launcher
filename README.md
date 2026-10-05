@@ -34,14 +34,31 @@ The launcher is configured to run emulators using RetroArch via Flatpak.
 
 ---
 
-## Launching the Launcher
+## How to Use
 
-1. Make sure you have launcher.py and worker.py in the same folder.
-2. Create a folder named roms in the same directory and organize your ROMs into subfolders (e.g., roms/Super Nintendo/, roms/Mega Drive/, etc.).
-3. Start the program by running:
-   python3 launcher.py
+### 1. Folder Structure (ROMs)
+To allow the launcher to automatically detect systems and games, organize your ROMs inside the `roms/` folder using subfolders named after the platforms:
+- `roms/Super Nintendo/` (or `snes/`)
+- `roms/Mega Drive/` (or `genesis/`)
+- `roms/Nintendo NES/`
+- `roms/Game Boy/`
+
+### 2. User Interface & Controls
+- **Left Panel (Search & List):** Type in the search bar to filter games in real-time. Use the game list to browse your library.
+- **Center Panel (Details & Actions):** Displays metadata (Year, Platform, Region) and cover art. Click **Play** (or press the confirmation button) to launch the game, and **Favorite** to toggle it in your favorites.
+- **Right Panel (Platforms):** Switch between "All games", "Favorites", and specific platforms.
+- **Menu Bar:** Use *File > Refresh ROMs* to reload your library, or *Settings* to change the ROM folder and language (English / Italian).
+
+### 3. Gamepad Controls
+The launcher fully supports gamepads connected via Linux (`/dev/input/js*`):
+- **D-Pad / Left Stick:** Navigate through the game list or platform menu.
+- **Button A (Bottom):** Launch the selected game.
+- **Button B (Right):** Toggle the game as a favorite.
 
 ---
 
-## Gamepad Support
-The launcher includes a dedicated thread for controller management via Linux /dev/input/js* devices. Make sure your user has permissions to read them.
+## Launching the Launcher
+
+1. Make sure you have `launcher.py` and `worker.py` in the same folder.
+2. Start the program by running:
+   python3 launcher.py
