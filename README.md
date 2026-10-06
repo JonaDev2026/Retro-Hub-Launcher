@@ -9,11 +9,11 @@
 [![Display Server](https://img.shields.io/badge/Display-X11%20%2F%20Xorg-orange.svg)](https://www.x.org/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
 
-**Retro Hub Launcher** è un frontend desktop ad alte prestazioni, thread-safe e completamente configurabile, progettato per la gestione e l'avvio di collezioni ROM retrogaming su sistemi Linux.
+**Retro Hub Launcher** is a high-performance, thread-safe, and fully configurable desktop frontend designed for managing and launching retro gaming ROM collections on Linux.
 
-Sviluppato in **Python** utilizzando **PySide6 (Qt6)** per l'interfaccia utente grafica e **Pygame** per la gestione degli eventi hardware, si basa su un'architettura disaccoppiata **Client-Worker**. Garantisce la massima reattività dell'interfaccia durante l'ingestion asincrona dei giochi e lo scraping dei metadati.
+Built in **Python** using **PySide6 (Qt6)** for the graphical user interface and **Pygame** for hardware event handling, it relies on a decoupled **Client-Worker** architecture. This guarantees maximum UI responsiveness during asynchronous game ingestion and metadata scraping.
 
-Progettato ed emulato specificamente per **Debian 13 (Trixie)** in ambiente **X11 / Xorg**.
+Specifically engineered and optimized for **Debian 13 (Trixie)** running in an **X11 / Xorg** environment.
 
 ---
 
@@ -36,19 +36,19 @@ Progettato ed emulato specificamente per **Debian 13 (Trixie)** in ambiente **X1
 
 ---
 
-## 🔥 Caratteristiche Principali
+## 🔥 Key Features
 
-* ⚡ **Architettura Asincrona Non-Bloccante**: L'interfaccia utente (`launcher_2.py`) rimane sempre reattiva a 60 FPS grazie all'esecuzione del worker di catalogazione (`worker.py`) in un processo dedicato in background.
-* 🎮 **Navigazione via Gamepad (Zero-Keyboard)**: Supporto nativo ai controller via polling `/dev/input/js*` gestito tramite Pygame thread-safe.
-* 🎨 **Auto-Scraping Copertine & Metadati**: Il worker monitora la cartella di importazione, organizza le ROM ed effettua lo scraping automatico delle copertine direttamente dai repository di Libretro.
-* 🕹️ **Supporto Emulatori Multi-Backend**: Gestione trasparente di **RetroArch** (tramite core Libretro) e **MAME** (sia pacchetti nativi che Flatpak).
-* 📁 **Ingestion Automatica (Watchdog)**: Smistamento dinamico dei file dalla cartella `import/` alle relative directory di sistema con generazione automatica di file `metadata.json` dedicati.
+* ⚡ **Non-Blocking Asynchronous Architecture**: The graphical frontend (`launcher_2.py`) maintains a steady 60 FPS while game cataloging is handled asynchronously by a background worker process (`worker.py`).
+* 🎮 **Gamepad Navigation (Zero-Keyboard)**: Native controller navigation powered by thread-safe Pygame polling over `/dev/input/js*`.
+* 🎨 **Automated Box Art & Metadata Scraping**: The worker monitors the import folder, organizes ROMs, and automatically scrapes cover art directly from official Libretro repositories.
+* 🕹️ **Multi-Backend Emulator Integration**: Seamless execution support for **RetroArch** (via Libretro cores) and **MAME** (both native binaries and Flatpak).
+* 📁 **Automated Ingestion (Watchdog)**: Automatically sorts incoming files from the `import/` directory into structured system subfolders and generates dedicated `metadata.json` files.
 
 ---
 
-## 🏗️ Architettura del Sistema
+## 🏗️ System Architecture
 
-L'applicazione si divide in due componenti principali sincronizzati tramite file di stato condivisi in `~/.config/sms_launcher/`:
+The application is split into two core components synchronized via shared state files in `~/.config/sms_launcher/`:
 
 ```text
 ┌──────────────────────────────┐              ┌──────────────────────────────┐
@@ -56,48 +56,48 @@ L'applicazione si divide in due componenti principali sincronizzati tramite file
 │   (PySide6 Frontend GUI)     │              │    (Background Ingestion)    │
 └──────────────┬───────────────┘              └──────────────┬───────────────┘
                │                                             │
-               │────── Legge ROM / Metadati / Cover ────────>│ (Directory Struct)
+               │────── Reads ROMs / Metadata / Covers ───────>│ (Directory Struct)
                │                                             │
-               │<───── Sincronizza Progressi / Lock ─────────│ (worker_progress.json)
+               │<───── Syncs Progress / Lock Files ──────────│ (worker_progress.json)
 ```
 
 1. **Frontend (`launcher_2.py`)**:
-   * Gestisce l'interfaccia grafica (PySide6) con supporto filtri, ricerca dinamica e preferiti.
-   * Gestisce gli input del gamepad e la mappatura dei tasti.
-   * Esegue gli emulatori isolando i processi di gioco.
+   * Manages the PySide6 interface with support for filtering, dynamic search, and favorites.
+   * Handles gamepad inputs and button mappings.
+   * Executes emulator processes in isolated child environments.
 2. **Backend Worker (`worker.py`)**:
-   * Monitora la cartella `import/`.
-   * Identifica le ROM tramite hash e database JSON ufficiali (es. `mame_db.json`).
-   * Scarica le miniature in formato PNG dal repository di Libretro Thumbnails.
+   * Continuously polls the `import/` directory.
+   * Identifies ROMs using file hashes and local JSON databases (e.g., `mame_db.json`).
+   * Downloads PNG box art thumbnails from the official Libretro Thumbnails repository.
 
 ---
 
-## 📂 Struttura del Progetto
+## 📂 Project Structure
 
 ```text
 sms_launcher/
-├── launcher_2.py       # Main GUI, eventi input e gestione emulatori
-├── worker.py          # Worker asincrono per scraping e organizzazione ROM
-├── mame_db.json       # Database locale per mapping ROM Arcade
-├── roms/              # Struttura ad albero organizzata per sistema
+├── launcher_2.py       # Main GUI, input event loop, and emulator launcher
+├── worker.py          # Asynchronous worker for ROM scraping and organization
+├── mame_db.json       # Local database mapping for Arcade ROMs
+├── roms/              # Tree-structured directory grouped by system
 │   ├── Sega - Master System/
 │   │   └── Alex Kidd/
 │   │       ├── alex_kidd.sms
 │   │       ├── metadata.json
 │   │       └── cover.png
-├── bios/              # BIOS richiesti per emulazione (es. neogeo.zip)
-└── import/            # Cartella temporanea per l'ingestion di nuove ROM
+├── bios/              # Mandatory BIOS files for emulation (e.g., neogeo.zip)
+└── import/            # Drop folder for automatic ROM ingestion
 ```
 
 ---
 
-## 🛠️ Requisiti di Sistema & Dipendenze (Debian 13 / X11)
+## 🛠️ System Requirements & Dependencies (Debian 13 / X11)
 
-L'applicazione richiede un ambiente **X11 / Xorg** su Debian 13.
+This application strictly requires an **X11 / Xorg** session on Debian 13.
 
-### 1. Installazione Pacchetti di Sistema
+### 1. System Package Installation
 
-Esegui il seguente comando nel terminale per installare le dipendenze Python, i driver joystick e le librerie X11:
+Run the following command to install Python dependencies, joystick drivers, and X11 libraries:
 
 ```bash
 sudo apt update && sudo apt install -y \
@@ -114,35 +114,35 @@ sudo apt update && sudo apt install -y \
     udev
 ```
 
-### 2. Configurazione Permessi Gamepad
+### 2. Gamepad Permissions Setup
 
-Per consentire l'accesso diretto ai dispositivi `/dev/input/js*` senza privilegi di root, aggiungi il tuo utente al gruppo `input`:
+To allow direct access to `/dev/input/js*` devices without root privileges, add your user to the `input` group:
 
 ```bash
 sudo usermod -aG input $USER
 ```
 
-> **Nota:** È necessario disconnettersi ed effettuare nuovamente il login per applicare i permessi.
+> **Note:** Log out and log back in for group permission changes to take effect.
 
 ---
 
-## 🚀 Setup Emulatori (RetroArch & MAME)
+## 🚀 Emulator Setup (RetroArch & MAME)
 
-Il launcher è preconfigurato per integrarsi con le versioni Flatpak ufficiali degli emulatori:
+The launcher comes pre-configured to integrate with official Flatpak emulator builds:
 
 ```bash
-# Installazione RetroArch via Flatpak
+# Install RetroArch via Flatpak
 flatpak install flathub org.libretro.RetroArch
 
-# Installazione MAME via Flatpak
+# Install MAME via Flatpak
 flatpak install flathub org.mamedev.MAME
 ```
 
-### Core Libretro Consigliati
+### Recommended Libretro Cores
 
-Assicurati di installare i seguenti core dall'Online Updater di RetroArch:
+Make sure to install the following cores via RetroArch's Online Core Updater:
 
-| Piattaforma | Estensioni Supportate | Core Libretro Consigliato |
+| Platform | Supported Extensions | Recommended Libretro Core |
 | :--- | :--- | :--- |
 | **Super Nintendo** | `.sfc`, `.smc` | `snes9x_libretro.so` |
 | **Nintendo NES** | `.nes` | `fceumm_libretro.so` |
@@ -154,39 +154,39 @@ Assicurati di installare i seguenti core dall'Online Updater di RetroArch:
 
 ---
 
-## 💻 Guida all'Uso
+## 💻 Quick Start Guide
 
-1. **Clona il repository e posizionati nella cartella**:
+1. **Clone the repository and navigate into the folder**:
    ```bash
-   git clone [https://github.com/vostro-utente/retro-hub-launcher.git](https://github.com/vostro-utente/retro-hub-launcher.git)
+   git clone [https://github.com/your-username/retro-hub-launcher.git](https://github.com/your-username/retro-hub-launcher.git)
    cd retro-hub-launcher
    ```
 
-2. **Prepara le cartelle**:
-   Inserisci i file BIOS (es. `neogeo.zip`) nella cartella `bios/` e le ROM che desideri importare nella cartella `import/`.
+2. **Prepare directories**:
+   Place required BIOS files (e.g., `neogeo.zip`) into the `bios/` directory and new ROMs into the `import/` directory.
 
-3. **Avvia il Frontend**:
+3. **Launch the Frontend**:
    ```bash
    python3 launcher_2.py
    ```
-   *(All'avvio, il launcher eseguirà automaticamente `worker.py` per processare i file presenti in `import/`)*.
+   *(On startup, the launcher will automatically spawn `worker.py` to ingest and process files in `import/`)*.
 
 ---
 
 ## ❓ Troubleshooting
 
-* **Il Gamepad non risponde ai comandi:**
-  Verifica che il dispositivo sia riconosciuto dal sistema eseguendo `jstest /dev/input/js0`. Se ricevi un errore di permessi, assicurati di aver eseguito il comando `sudo usermod -aG input $USER`.
-* **Problemi di rendering con Wayland:**
-  L'applicazione richiede esplicitamente una sessione X11/Xorg. Se stai utilizzando Wayland, effettua il logout e seleziona "GNOME su Xorg" o "Plasma (X11)" dalla schermata di login.
-* **Stato del Worker Bloccato:**
-  Se il worker si interrompe in modo anomalo, elimina il file di lock di sicurezza con il comando:
+* **Gamepad input not responding:**
+  Verify that your controller is recognized by running `jstest /dev/input/js0`. If you encounter permission errors, confirm your user is in the `input` group via `sudo usermod -aG input $USER`.
+* **Rendering or window issues on Wayland:**
+  The application explicitly targets X11/Xorg. If running Wayland, log out and select "GNOME on Xorg" or "Plasma (X11)" from your display manager.
+* **Worker Process Locked / Stuck State:**
+  If the background worker terminates unexpectedly, clear the lockfile with:
   ```bash
   rm ~/.config/sms_launcher/worker.lock
   ```
 
 ---
 
-## 📄 Licenza
+## 📄 License
 
-Distribuito sotto licenza **MIT**. Consulta il file `LICENSE` per maggiori dettagli.
+Distributed under the **MIT License**. See `LICENSE` for more information.
