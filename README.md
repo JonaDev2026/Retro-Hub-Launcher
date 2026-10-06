@@ -126,16 +126,18 @@ sudo usermod -aG input $USER
 
 ---
 
-## 🚀 Emulator Setup (RetroArch & MAME)
+## 🚀 Emulator Setup & Flatpak Permissions
 
-The launcher comes pre-configured to integrate with official Flatpak emulator builds:
+The launcher integrates with official Flatpak builds. Run the commands below to install the emulators and grant them the required filesystem permissions to read ROMs from host directories:
 
 ```bash
-# Install RetroArch via Flatpak
-flatpak install flathub org.libretro.RetroArch
+# 1. Install RetroArch & MAME via Flatpak
+flatpak install flathub org.libretro.RetroArch -y
+flatpak install flathub org.mamedev.MAME -y
 
-# Install MAME via Flatpak
-flatpak install flathub org.mamedev.MAME
+# 2. Grant Filesystem & Input Device Permissions (Mandatory)
+flatpak override --filesystem=host org.libretro.RetroArch
+flatpak override --filesystem=host org.mamedev.MAME
 ```
 
 ### Recommended Libretro Cores
