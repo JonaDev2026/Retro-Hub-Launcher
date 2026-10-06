@@ -273,18 +273,147 @@ def save_settings(settings):
     except Exception:
         pass
 
-def clean_platform_display(sub):
-    if not sub: return ""
-    if "Master_System" in sub: return "Sega Master System"
-    elif "Mega_Drive" in sub: return "Sega Mega Drive"
-    elif "Super_Nintendo" in sub or "SNES" in sub: return "Super Nintendo"
-    elif "Nintendo_Entertainment_System" in sub or "NES" in sub: return "Nintendo NES"
-    elif "Game_Boy_Advance" in sub: return "Game Boy Advance"
-    elif "Game_Boy" in sub: return "Game Boy"
-    elif "Nintendo_64" in sub: return "Nintendo 64"
-    elif "PlayStation" in sub or "PSX" in sub: return "Sony PlayStation"
-    return sub.replace("_-_", " ").replace("-", " ").replace("_", " ")
+# Dizionario completo per la normalizzazione dei nomi nella GUI
+SHORT_PLATFORM_NAMES = {
+    "amstrad - cpc": "Amstrad CPC",
+    "amstrad - gx4000": "Amstrad GX4000",
+    "apple - ii": "Apple II",
+    "arduboy inc - arduboy": "Arduboy",
+    "atari - 2600": "Atari 2600",
+    "atari - 5200": "Atari 5200",
+    "atari - 7800": "Atari 7800",
+    "atari - 8-bit family": "Atari 8-bit",
+    "atari - jaguar": "Atari Jaguar",
+    "atari - lynx": "Atari Lynx",
+    "atomiswave": "Atomiswave",
+    "bandai - wonderswan": "WonderSwan",
+    "bandai - wonderswan color": "WonderSwan Color",
+    "cannonball": "Cannonball",
+    "casio - loopy": "Casio Loopy",
+    "casio - pv-1000": "Casio PV-1000",
+    "cave story": "Cave Story",
+    "chailove": "ChaiLove",
+    "chip-8": "CHIP-8",
+    "coleco - colecovision": "ColecoVision",
+    "commodore - 64": "Commodore 64",
+    "commodore - amiga": "Amiga",
+    "commodore - cdtv": "Commodore CDTV",
+    "commodore - pet": "Commodore PET",
+    "commodore - plus-4": "Commodore Plus-4",
+    "dice": "DICE",
+    "dinothawr": "Dinothawr",
+    "doom": "DOOM",
+    "dos": "DOS",
+    "elektor - tv games computer": "Elektor TV Games",
+    "emerson - arcadia 2001": "Arcadia 2001",
+    "enterprise - 128": "Enterprise 128",
+    "epoch - cassette vision": "Cassette Vision",
+    "epoch - super cassette vision": "Super Cassette Vision",
+    "fairchild - channel f": "Channel F",
+    "fbneo - arcade games": "FBNeo Arcade",
+    "flashback": "Flashback",
+    "funtech - super acan": "Super Acan",
+    "gamepark - gp32": "GP32",
+    "gce - vectrex": "Vectrex",
+    "handheld electronic game": "Handheld Electronic",
+    "hartung - game master": "Game Master",
+    "infocom - z-machine": "Z-Machine",
+    "interton - vc 4000": "VC 4000",
+    "jump 'n bump": "Jump 'n Bump",
+    "leapfrog - leapster learning game system": "Leapster",
+    "lowres nx": "LowRes NX",
+    "lutro": "Lutro",
+    "magnavox - odyssey2": "Odyssey2",
+    "mame": "Arcade (MAME)",
+    "mame 2000": "MAME 2000",
+    "mame 2003": "MAME 2003",
+    "mame 2010": "MAME 2010",
+    "mame 2016": "MAME 2016",
+    "mattel - intellivision": "Intellivision",
+    "microsoft - msx": "MSX",
+    "microsoft - msx2": "MSX2",
+    "microw8": "MicroW8",
+    "mobile - j2me": "Mobile J2ME",
+    "nec - pc-8001 - pc-8801": "NEC PC-8801",
+    "nec - pc-88": "NEC PC-88",
+    "nec - pc-98": "NEC PC-98",
+    "nec - pc engine cd - turbografx-cd": "TurboGrafx-CD",
+    "nec - pc engine supergrafx": "SuperGrafx",
+    "nec - pc engine - turbografx 16": "PC Engine",
+    "nec - pc-fx": "PC-FX",
+    "nintendo - family computer disk system": "Famicom Disk System",
+    "nintendo - game boy": "Game Boy",
+    "nintendo - game boy advance": "Game Boy Advance",
+    "nintendo - game boy color": "Game Boy Color",
+    "nintendo - gamecube": "GameCube",
+    "nintendo - nintendo 3ds": "Nintendo 3DS",
+    "nintendo - nintendo 64": "Nintendo 64",
+    "nintendo - nintendo 64dd": "Nintendo 64DD",
+    "nintendo - nintendo ds": "Nintendo DS",
+    "nintendo - nintendo entertainment system": "NES",
+    "nintendo - pokemon mini": "Pokemon Mini",
+    "nintendo - satellaview": "Satellaview",
+    "nintendo - sufami turbo": "Sufami Turbo",
+    "nintendo - super nintendo entertainment system": "Super Nintendo",
+    "nintendo - virtual boy": "Virtual Boy",
+    "nintendo - wii": "Nintendo Wii",
+    "nintendo - wii (digital)": "Nintendo Wii (Digital)",
+    "philips - cd-i": "Philips CD-i",
+    "philips - videopac+": "Videopac+",
+    "pico-8": "PICO-8",
+    "quake": "Quake",
+    "quake ii": "Quake II",
+    "rca - studio ii": "RCA Studio II",
+    "rick dangerous": "Rick Dangerous",
+    "rpg maker": "RPG Maker",
+    "scummvm": "ScummVM",
+    "sega - dreamcast": "Sega Dreamcast",
+    "sega - game gear": "Game Gear",
+    "sega - master system - mark iii": "Sega Master System",
+    "sega - mega-cd - sega cd": "Sega CD",
+    "sega - mega drive - genesis": "Sega Mega Drive",
+    "sega - naomi": "Sega Naomi",
+    "sega - naomi 2": "Sega Naomi 2",
+    "sega - pico": "Sega PICO",
+    "sega - saturn": "Sega Saturn",
+    "sega - sg-1000": "Sega SG-1000",
+    "sharp - x1": "Sharp X1",
+    "sharp - x68000": "Sharp X68000",
+    "sinclair - zx 81": "Sinclair ZX81",
+    "sinclair - zx spectrum": "ZX Spectrum",
+    "sinclair - zx spectrum +3": "ZX Spectrum +3",
+    "snk - neo geo": "Neo Geo",
+    "snk - neo geo cd": "Neo Geo CD",
+    "snk - neo geo pocket": "Neo Geo Pocket",
+    "sony - playstation": "PlayStation",
+    "sony - playstation 2": "PlayStation 2",
+    "sony - playstation 3": "PlayStation 3",
+    "sony - playstation 3 (psn)": "PlayStation 3 (PSN)",
+    "sony - playstation portable": "PlayStation Portable",
+    "sony - playstation portable (psn)": "PlayStation Portable (PSN)",
+    "sony - playstation vita": "PlayStation Vita",
+    "spectravideo - svi-318 - svi-328": "Spectravideo SVI",
+    "the 3do company - 3do": "3DO",
+    "thomson - moto": "Thomson MOTO",
+    "tic-80": "TIC-80",
+    "videoton - tv-computer": "Videoton TV-Computer",
+    "vircon32": "Vircon32",
+    "vtech - creativision": "CreatiVision",
+    "vtech - v.smile": "V.Smile",
+    "wasm-4": "WASM-4",
+    "watara - supervision": "Supervision",
+    "wolfenstein 3d": "Wolfenstein 3D"
+}
 
+def clean_platform_display(sub):
+    if not sub: 
+        return ""
+    # Normalizza la stringa in ingresso per matcharla col dizionario
+    key = sub.replace("_-_", " - ").replace("_", " ").strip().lower()
+    if key in SHORT_PLATFORM_NAMES:
+        return SHORT_PLATFORM_NAMES[key]
+    # Fallback sicuro se per caso arriva una stringa non censita
+    return sub.replace("_-_", " ").replace("-", " ").replace("_", " ")
 def list_roms_recursive(rom_dir):
     results = []
     if not rom_dir or not os.path.isdir(rom_dir):

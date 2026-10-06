@@ -14,17 +14,34 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 
 VALID_EXTS = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.zip', '.cue', '.iso', '.chd')
 
+SYSTEM_ALIASES = {
+    "sms": "Sega - Master System - Mark III",
+    "master system": "Sega - Master System - Mark III",
+    "snes": "Nintendo - Super Nintendo Entertainment System",
+    "super nintendo": "Nintendo - Super Nintendo Entertainment System",
+    "nes": "Nintendo - Nintendo Entertainment System",
+    "genesis": "Sega - Mega Drive - Genesis",
+    "megadrive": "Sega - Mega Drive - Genesis",
+    "md": "Sega - Mega Drive - Genesis",
+    "gb": "Nintendo - Game Boy",
+    "gba": "Nintendo - Game Boy Advance",
+    "n64": "Nintendo - Nintendo 64",
+    "arcade": "MAME"
+}
+
+def normalize_system_name(raw_name):
+    clean_key = raw_name.strip().lower()
+    return SYSTEM_ALIASES.get(clean_key, raw_name)
+
 def get_clean_platform_name(libretro_sys):
     return libretro_sys.replace("_-_", " ").replace("_", " ")
 
 def get_retroarch_core_for_platform(platform_name):
-    p_lower = platform_name.lower()
-    
+    p_lower = normalize_system_name(platform_name).lower()
     if "mame" in p_lower or "arcade" in p_lower:
         return "mame_libretro.so"
     elif "fbneo" in p_lower or "finalburn" in p_lower:
         return "fbneo_libretro.so"
-        
     elif "nes" in p_lower or "nintendo entertainment system" in p_lower:
         return "fceumm_libretro.so"
     elif "snes" in p_lower or "super nintendo" in p_lower:
@@ -35,7 +52,6 @@ def get_retroarch_core_for_platform(platform_name):
         return "mgba_libretro.so"
     elif "playstation" in p_lower:
         return "pcsx_rearmed_libretro.so"
-        
     return "mame_libretro.so"
 
 def load_json(path):
@@ -64,7 +80,8 @@ def log_message(log_path, message):
 
 def load_database_for_system(libretro_sys, data_dir, log_path):
     games_db = {}
-    target_clean = libretro_sys.lower().replace("_", " ").replace("-", " ")
+    normalized_sys = normalize_system_name(libretro_sys)
+    target_clean = normalized_sys.lower().replace("_", " ").replace("-", " ")
     
     if "mame" in target_clean or "arcade" in target_clean:
         mame_json_path = os.path.join(data_dir, "mame_db.json")
@@ -106,7 +123,7 @@ def main():
 
     try:
         with open(log_path, "w", encoding="utf-8") as f:
-            f.write("=== WORKER STARTED (CORE MAPPING MODE) ===\n")
+            f.write("=== WORKER STARTED (FIXED REPO URL) ===\n")
     except Exception:
         pass
 
@@ -130,7 +147,8 @@ def main():
                         if rel_path == ".":
                             libretro_sys = "Sega - Master System - Mark III"
                         else:
-                            libretro_sys = rel_path.split(os.sep)[0]
+                            raw_folder = rel_path.split(os.sep)[0]
+                            libretro_sys = normalize_system_name(raw_folder)
 
                         sys_path = os.path.join(rom_dir, libretro_sys)
                         os.makedirs(sys_path, exist_ok=True)
@@ -186,10 +204,12 @@ def main():
                     if d_info["year"]: year = d_info["year"]
                     if d_info["region"]: region = d_info["region"]
                     if d_info["revision"]: revision = d_info["revision"]
+                    log_message(log_path, f"Match DB per '{base_name}' con chiave '{k}' -> {official_title} ({year})")
                     break
 
             if not official_title:
                 official_title = base_name_clean
+                log_message(log_path, f"Nessun match DB per '{base_name}', fallback: {official_title}")
 
             if not year:
                 ym = re.search(r'\b(19\d{2}|20\d{2})\b', official_title)
@@ -209,22 +229,36 @@ def main():
             })
 
             cover_path = os.path.join(game_dir, "cover.png")
-            none_path = cover_path + ".none"
             
-            if not os.path.exists(cover_path) and not os.path.exists(none_path):
+            none_path = cover_path + ".none"
+            if os.path.exists(none_path):
+                try: os.remove(none_path)
+                except Exception: pass
+
+            if os.path.exists(cover_path):
+                log_message(log_path, f"[COPERTINA GIA' PRESENTE] {base_name}")
+            else:
                 target_title = official_title or rom_no_ext
                 safe_title = target_title.replace(':', '_').replace('/', '_').replace('\\', '_')
                 safe_title = ' '.join(safe_title.split())
 
                 possible_names = [safe_title, rom_no_ext]
-                subfolders = ["Named_Boxarts", "Named_Titles", "Named_Logos", "Named_Snaps"]
+                subfolders = ["Named_Boxarts", "Named_Titles", "Named_Snaps", "Named_Logos"]
                 downloaded = False
+
+                log_message(log_path, f"--- Inizio ricerca cover per: {base_name} (Sistema: {libretro_sys}) ---")
+
+                # Correzione fondamentale: i repository GitHub usano gli underscore al posto degli spazi nel nome del sistema
+                repo_sys_name = libretro_sys.replace(' ', '_')
 
                 for name_to_try in possible_names:
                     if downloaded: break
                     for folder in subfolders:
                         if downloaded: break
-                        direct_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{urllib.parse.quote(libretro_sys)}/master/{folder}/{urllib.parse.quote(name_to_try + '.png')}"
+                        
+                        direct_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{urllib.parse.quote(repo_sys_name, safe='')}/master/{folder}/{urllib.parse.quote(name_to_try + '.png', safe='')}"
+                        log_message(log_path, f"Tenta URL: {direct_url}")
+                        
                         try:
                             req = urllib.request.Request(direct_url, headers={'User-Agent': 'RetroHub-Worker'})
                             with urllib.request.urlopen(req, timeout=10) as response:
@@ -234,13 +268,17 @@ def main():
                                         with open(cover_path, 'wb') as out_file: 
                                             out_file.write(content)
                                         downloaded = True
+                                        log_message(log_path, f"[SUCCESSO] Copertina scaricata da: {direct_url}")
                                         break
-                        except Exception:
-                            continue
+                                    else:
+                                        log_message(log_path, f"[Scartata] HTTP 200 ma file non valido o troppo piccolo ({len(content)} bytes)")
+                                else:
+                                    log_message(log_path, f"[Fallita] HTTP Status: {response.status}")
+                        except Exception as e:
+                            log_message(log_path, f"[Errore richiesta] {e}")
 
                 if not downloaded:
-                    try: open(none_path, 'w').close()
-                    except Exception: pass
+                    log_message(log_path, f"[FALLIMENTO TOTALE] Nessuna copertina trovata su GitHub per: {base_name}")
 
         save_json(PROGRESS_FILE, {"task": "Completed", "total": total, "current": total})
         log_message(log_path, "=== PROCESSING COMPLETED SUCCESSFULLY ===")
