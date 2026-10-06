@@ -228,11 +228,11 @@ PLATFORM_COLORS = {
     "lowres nx": "#30d158",
     "lutro": "#30d158",
     "magnavox - odyssey2": "#ff9500",
-    "mame": "#ffcc00",
-    "mame 2000": "#ffcc00",
-    "mame 2003": "#ffcc00",
-    "mame 2010": "#ffcc00",
-    "mame 2016": "#ffcc00",
+    "mame": "#dc8add",
+    "mame 2000": "#dc8add",
+    "mame 2003": "#dc8add",
+    "mame 2010": "#dc8add",
+    "mame 2016": "#dc8add",
     "mattel - intellivision": "#ff9500",
     "microsoft - msx": "#5856d6",
     "microsoft - msx2": "#5856d6",
@@ -371,6 +371,8 @@ LANGS = {
         "menu_rom_folder": "ROM folder...",
         "menu_language": "Language",
         "menu_backends": "Emulator Backends",
+        "backend_flatpak": "Standard Flatpak",
+        "backend_native": "Native Package",
         "games_count": "games",
         "no_images": "No image",
         "loading_bg": "Loading in background...",
@@ -401,6 +403,8 @@ LANGS = {
         "menu_rom_folder": "Cartella ROM...",
         "menu_language": "Lingua",
         "menu_backends": "Motori Emulatori",
+        "backend_flatpak": "Flatpak Normale",
+        "backend_native": "Pacchetto Nativo",
         "games_count": "giochi",
         "no_images": "Nessuna immagine",
         "loading_bg": "Caricamento in background...",
@@ -693,19 +697,61 @@ class EmulatorRunnerThread(QThread):
                 cmd = ["mame", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
         else:
             cores_base = os.path.expanduser("~/.var/app/org.libretro.RetroArch/config/retroarch/cores/")
-            if "super nintendo" in sub_lower or "snes" in sub_lower:
-                core_name = "snes9x_libretro.so"
-            elif "nes" in sub_lower or "nintendo entertainment system" in sub_lower:
-                core_name = "fceumm_libretro.so"
-            elif "game boy advance" in sub_lower or "gba" in sub_lower:
-                core_name = "vba_next_libretro.so"
-            elif "game boy" in sub_lower:
-                core_name = "gambatte_libretro.so"
-            elif "nintendo 64" in sub_lower or "n64" in sub_lower:
-                core_name = "mupen64plus_next_libretro.so"
-            else:
-                core_name = "genesis_plus_gx_libretro.so"
             
+            core_mapping = {
+                "super nintendo": "snes9x_libretro.so",
+                "snes": "snes9x_libretro.so",
+                "nintendo 64": "mupen64plus_next_libretro.so",
+                "n64": "mupen64plus_next_libretro.so",
+                "nintendo ds": "desmume_libretro.so",
+                "nds": "desmume_libretro.so",
+                "nintendo 3ds": "citra_libretro.so",
+                "3ds": "citra_libretro.so",
+                "game boy advance": "mgba_libretro.so",
+                "gba": "mgba_libretro.so",
+                "game boy color": "gambatte_libretro.so",
+                "gbc": "gambatte_libretro.so",
+                "game boy": "gambatte_libretro.so",
+                "nintendo": "fceumm_libretro.so",
+                "nes": "fceumm_libretro.so",
+                "gamecube": "dolphin_libretro.so",
+                "playstation portable": "ppsspp_libretro.so",
+                "psp": "ppsspp_libretro.so",
+                "playstation 2": "pcsx2_libretro.so",
+                "ps2": "pcsx2_libretro.so",
+                "playstation": "pcsx_rearmed_libretro.so",
+                "psx": "pcsx_rearmed_libretro.so",
+                "ps1": "pcsx_rearmed_libretro.so",
+                "saturn": "mednafen_saturn_libretro.so",
+                "dreamcast": "flycast_libretro.so",
+                "atari 2600": "stella_libretro.so",
+                "atari 5200": "a5200_libretro.so",
+                "atari 800": "atari800_libretro.so",
+                "atari lynx": "mednafen_lynx_libretro.so",
+                "commodore - 64": "vice_x64sc_libretro.so",
+                "c64": "vice_x64sc_libretro.so",
+                "amiga": "amiberry_libretro.so",
+                "msx": "bluemsx_libretro.so",
+                "zx spectrum": "fuse_libretro.so",
+                "3do": "opera_libretro.so",
+                "jaguar": "virtualjaguar_libretro.so",
+                "neo geo pocket": "mednafen_ngp_libretro.so",
+                "pc engine": "mednafen_pce_fast_libretro.so",
+                "turbografx": "mednafen_pce_fast_libretro.so",
+                "virtual boy": "mednafen_vb_libretro.so",
+                "wonderswan": "mednafen_wswan_libretro.so",
+                "dos": "dosbox_pure_libretro.so",
+                "scummvm": "scummvm_libretro.so",
+                "arcade": "fbneo_libretro.so",
+                "fbneo": "fbneo_libretro.so"
+            }
+
+            core_name = "genesis_plus_gx_libretro.so"
+            for key, core in core_mapping.items():
+                if key in sub_lower:
+                    core_name = core
+                    break
+
             core_path = os.path.join(cores_base, core_name)
 
             if self.emulator_retroarch == "flatpak":
@@ -768,7 +814,6 @@ class SMSLauncher(QWidget):
         self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
-        # Abilita il tracciamento del mouse per mostrare la manina SOLTANTO sugli elementi
         self.list.viewport().setMouseTracking(True)
         self.list.viewport().installEventFilter(self)
 
@@ -831,7 +876,6 @@ class SMSLauncher(QWidget):
         self.folders_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.folders_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
-        # Abilita il tracciamento del mouse per la lista cartelle
         self.folders_list.viewport().setMouseTracking(True)
         self.folders_list.viewport().installEventFilter(self)
 
@@ -886,7 +930,6 @@ class SMSLauncher(QWidget):
         self.update_folders_list()
         self.fill_list()
 
-        # Event filter globale per gamepad
         QApplication.instance().installEventFilter(self)
 
         self.gamepad = GamepadThread()
@@ -909,8 +952,6 @@ class SMSLauncher(QWidget):
         if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick):
             self.clear_gamepad_focus()
 
-        # Gestione dinamica del cursore nelle sidebar:
-        # imposta la manina SOLO se sotto il puntatore c'è un elemento reale
         if event.type() == QEvent.MouseMove and obj in (self.list.viewport(), self.folders_list.viewport()):
             widget = self.list if obj == self.list.viewport() else self.folders_list
             if widget.itemAt(event.pos()) is not None:
@@ -1214,8 +1255,8 @@ class SMSLauncher(QWidget):
         ra_grp = QActionGroup(self)
         ra_grp.setExclusive(True)
         cur_ra = self.settings.get("emulator_retroarch", "flatpak")
-        for code, label in (("flatpak", "Flatpak Normale"), ("native", "Pacchetto Nativo")):
-            a = QAction(label, self, checkable=True)
+        for code, key in (("flatpak", "backend_flatpak"), ("native", "backend_native")):
+            a = QAction(self.tr(key), self, checkable=True)
             a.setChecked(cur_ra == code)
             a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_retroarch", c))
             ra_grp.addAction(a)
@@ -1225,8 +1266,8 @@ class SMSLauncher(QWidget):
         mame_grp = QActionGroup(self)
         mame_grp.setExclusive(True)
         cur_mame = self.settings.get("emulator_mame", "flatpak")
-        for code, label in (("flatpak", "Flatpak Normale"), ("native", "Pacchetto Nativo")):
-            a = QAction(label, self, checkable=True)
+        for code, key in (("flatpak", "backend_flatpak"), ("native", "backend_native")):
+            a = QAction(self.tr(key), self, checkable=True)
             a.setChecked(cur_mame == code)
             a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_mame", c))
             mame_grp.addAction(a)
