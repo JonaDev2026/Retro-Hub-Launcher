@@ -36,10 +36,38 @@ os.makedirs(IMG_DIR, exist_ok=True)
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
 DOT = 24
-COLOR_GAMES = "#0089cf"
-COLOR_FAV = "#bf5af2"
-COLOR_PLATFORM = "#30d158"
+COLOR_NEUTRAL = "#ffffff"  # Bianco pulito per Tutti i giochi e Preferiti
 COLOR_WORKER_LABEL = "#ffd60a"
+
+# Palette di 12 colori brillanti ottimizzati per il tema scuro
+BRAND_PALETTE = [
+    "#0089cf", "#ff375f", "#30d158", "#ff9f0a", "#bf5af2",
+    "#5ac8fa", "#ffcc00", "#ff2d55", "#5856d6", "#4cd964",
+    "#d1d1d6", "#ff9500"
+]
+
+# Mappatura fissa per i brand più famosi con i loro colori originali
+FIXED_BRAND_COLORS = {
+    "sega": "#0089cf",
+    "nintendo": "#ff375f",
+    "sony": "#d1d1d6",
+    "atari": "#ff9f0a",
+    "snk": "#ffcc00",
+    "nec": "#bf5af2"
+}
+
+def get_color_for_brand(subfolder):
+    if not subfolder:
+        return BRAND_PALETTE[0]
+    
+    sub_lower = subfolder.lower()
+    for brand, color in FIXED_BRAND_COLORS.items():
+        if brand in sub_lower:
+            return color
+            
+    # Assegnazione deterministica basata su hash per gli altri brand
+    h = int(hashlib.md5(subfolder.encode('utf-8')).hexdigest(), 16)
+    return BRAND_PALETTE[h % len(BRAND_PALETTE)]
 
 AUTHOR, YEAR = "Jonathan Sanfilippo", "2026"
 STATO = "#0c0c0c"
@@ -134,7 +162,7 @@ QMenu::separator {{ height: 1px; background: {SCELTO}; margin: 4px 0; }}
 QLineEdit {{ background: {CERCA}; color: {TESTO}; border: none; border-radius: 18px;
             padding: 0 14px 0 4px; min-height: 36px; selection-background-color: {IN_ONDA}; }}
 QListWidget {{ background: {PANNELLO}; border: none; outline: 0; }}
-QListWidget:focus {{ border: 1px solid {COLOR_GAMES}; }}
+QListWidget:focus {{ border: 1px solid {BRAND_PALETTE[0]}; }}
 QListWidget::item:selected, QListWidget::item:selected:!active
     {{ background: {CERCA}; color: #ffffff; }}
 QPushButton {{ background: {TASTO}; color: {TESTO}; border: none; border-radius: 6px;
@@ -191,6 +219,7 @@ class GameDelegate(QStyledItemDelegate):
 
         year_str = index.data(Qt.UserRole + 1) or ""
         subfolder_str = index.data(Qt.UserRole + 5) or ""
+        dot_color = index.data(Qt.UserRole + 2) or BRAND_PALETTE[0]
 
         if year_str:
             painter.setPen(QColor(GRIGIO))
@@ -204,7 +233,7 @@ class GameDelegate(QStyledItemDelegate):
             cur_x += fm.horizontalAdvance(sep) + 2
 
         if subfolder_str:
-            painter.setPen(QColor("#30d158"))
+            painter.setPen(QColor(dot_color))
             painter.drawText(QRect(cur_x, r.top() + 25, w, 15), Qt.AlignLeft | Qt.AlignVCenter, subfolder_str)
 
         painter.restore()
@@ -249,13 +278,14 @@ def clean_platform_display(sub):
     elif "Game_Boy_Advance" in sub: return "Game Boy Advance"
     elif "Game_Boy" in sub: return "Game Boy"
     elif "Nintendo_64" in sub: return "Nintendo 64"
+    elif "PlayStation" in sub or "PSX" in sub: return "Sony PlayStation"
     return sub.replace("_-_", " ").replace("-", " ").replace("_", " ")
 
 def list_roms_recursive(rom_dir):
     results = []
     if not rom_dir or not os.path.isdir(rom_dir):
         return results
-    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.zip')
+    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.iso', '.zip')
     
     for root, dirs, files in os.walk(rom_dir):
         for f in files:
@@ -656,6 +686,10 @@ class SMSLauncher(QWidget):
         prog_data = load_json(PROGRESS_FILE)
         if prog_data:
             task = prog_data.get("task", "Elaborazione...")
+            # Sicurezza: tronca i nomi troppo lunghi per evitare che allarghino la finestra
+            if len(task) > 35:
+                task = task[:32] + "..."
+                
             current = prog_data.get("current", 0)
             total = prog_data.get("total", 0)
             if task == "Completato" and not is_locked:
@@ -680,9 +714,12 @@ class SMSLauncher(QWidget):
             desc = m.get("title", name)
             year_val = m.get("year", "?")
             
-            self.meta[name] = m
+            unique_key = f"{subfolder}_{name}"
             
-            self.all_item_cache[name] = {
+            self.meta[unique_key] = m
+            
+            self.all_item_cache[unique_key] = {
+                "name": name,
                 "desc": desc,
                 "year": year_val,
                 "path": path,
@@ -699,23 +736,26 @@ class SMSLauncher(QWidget):
 
         total_count = len(self.roms_data)
         favs = set(self.settings.get("favorites", []))
-        fav_count = sum(1 for item in self.roms_data if item[0] in favs)
+        fav_count = sum(1 for item in self.roms_data if f"{item[2]}_{item[0]}" in favs or item[0] in favs)
 
+        # "Tutti i giochi" con dot bianco neutro
         it_all = QListWidgetItem(f"{self.tr('all_games')}  ({total_count})")
-        it_all.setIcon(make_dot(COLOR_GAMES))
+        it_all.setIcon(make_dot(COLOR_NEUTRAL))
         it_all.setData(Qt.UserRole, "all")
         self.folders_list.addItem(it_all)
 
+        # "Preferiti" con dot bianco neutro
         it_fav = QListWidgetItem(f"{self.tr('favorites')}  ({fav_count})")
-        it_fav.setIcon(make_dot(COLOR_FAV))
+        it_fav.setIcon(make_dot(COLOR_NEUTRAL))
         it_fav.setData(Qt.UserRole, "favorites")
         self.folders_list.addItem(it_fav)
 
         subfolders = sorted(list(set(sub for _, _, sub, _ in self.roms_data if sub)))
         for sub in subfolders:
             count = sum(1 for _, _, s, _ in self.roms_data if s == sub)
+            brand_color = get_color_for_brand(sub)
             it_sub = QListWidgetItem(f"{sub}  ({count})")
-            it_sub.setIcon(make_dot(COLOR_PLATFORM))
+            it_sub.setIcon(make_dot(brand_color))
             it_sub.setData(Qt.UserRole, f"sub_{sub}")
             self.folders_list.addItem(it_sub)
 
@@ -788,18 +828,18 @@ class SMSLauncher(QWidget):
 
     def toggle_favorite(self):
         if not self.isVisible(): return
-        name = self.current_name()
-        if not name: return
+        unique_key = self.current_name()
+        if not unique_key: return
         favs = self.settings.setdefault("favorites", [])
-        if name in favs: favs.remove(name)
-        else: favs.append(name)
+        if unique_key in favs: favs.remove(unique_key)
+        else: favs.append(unique_key)
         save_settings(self.settings)
-        self.update_favorite_button(name)
+        self.update_favorite_button(unique_key)
         self.update_folders_list()
 
-    def update_favorite_button(self, name):
+    def update_favorite_button(self, unique_key):
         favs = self.settings.get("favorites", [])
-        star = "★" if name in favs else "☆"
+        star = "★" if unique_key in favs else "☆"
         self.fav_btn.setText(f"{star} {self.tr('favorite')}")
 
     def on_search_changed(self):
@@ -825,7 +865,9 @@ class SMSLauncher(QWidget):
 
         for item_tuple in self.roms_data:
             name, _, subfolder, _ = item_tuple
-            if curr_data == "favorites" and name not in favs:
+            unique_key = f"{subfolder}_{name}"
+            
+            if curr_data == "favorites" and unique_key not in favs and name not in favs:
                 continue
             elif curr_data and curr_data.startswith("sub_"):
                 target_sub = curr_data[4:]
@@ -833,7 +875,7 @@ class SMSLauncher(QWidget):
                     continue
 
             if q_tokens:
-                m = self.meta.get(name, {})
+                m = self.meta.get(unique_key, self.meta.get(name, {}))
                 title = m.get("title", name).lower()
                 year = str(m.get("year", ""))
                 region = m.get("region", "").lower()
@@ -841,20 +883,24 @@ class SMSLauncher(QWidget):
                 hay = f"{title} {name} {year} {region} {revision} {subfolder}"
                 if not all(t in hay for t in q_tokens):
                     continue
-            filtered.append(name)
+            filtered.append(unique_key)
 
-        filtered.sort(key=lambda name: self.meta.get(name, {}).get("title", name).lower())
+        filtered.sort(key=lambda uk: self.meta.get(uk, {}).get("title", uk).lower())
 
-        for name in filtered:
-            data = self.all_item_cache.get(name)
+        for unique_key in filtered:
+            data = self.all_item_cache.get(unique_key)
             if data:
+                subfolder = data.get("subfolder", "")
+                dot_color = get_color_for_brand(subfolder)
+                
                 it = QListWidgetItem(data["desc"])
-                it.setData(Qt.UserRole, name)
-                it.setIcon(make_dot(COLOR_GAMES))
+                it.setData(Qt.UserRole, unique_key)
+                it.setIcon(make_dot(dot_color))
                 it.setData(Qt.UserRole + 1, data["year"])
+                it.setData(Qt.UserRole + 2, dot_color)
                 it.setData(Qt.UserRole + 5, subfolder)
                 
-                self.items[name] = it
+                self.items[unique_key] = it
                 self.list.addItem(it)
 
         self.list.blockSignals(False)
@@ -865,7 +911,7 @@ class SMSLauncher(QWidget):
 
     def update_status(self):
         total_games = len(self.roms_data)
-        parts = [f"<span style='color:{COLOR_GAMES};'>●</span> <span style='color:#ffffff;'>{total_games} {self.tr('games_count')}</span>"]
+        parts = [f"<span style='color:{COLOR_NEUTRAL};'>●</span> <span style='color:#ffffff;'>{total_games} {self.tr('games_count')}</span>"]
         if self.rom_size:
             parts.append(f"<span style='color:#ffffff;'>{fmt_size(self.rom_size)}</span>")
         self.count_lbl.setText(" \u00b7 ".join(parts))
@@ -875,11 +921,12 @@ class SMSLauncher(QWidget):
         return it.data(Qt.UserRole) if it else None
 
     def show_game(self, *_):
-        name = self.current_name()
-        if not name: return
-        data = self.all_item_cache.get(name, {})
-        m = self.meta.get(name, {})
+        unique_key = self.current_name()
+        if not unique_key: return
+        data = self.all_item_cache.get(unique_key, {})
+        m = self.meta.get(unique_key, {})
         
+        name = data.get("name", unique_key)
         title = html.escape(m.get("title", name))
         year = html.escape(str(m.get("year", "?")))
         platform = html.escape(m.get("platform", data.get("subfolder", "")))
@@ -905,12 +952,13 @@ class SMSLauncher(QWidget):
             txt += f"<br><span style='color:{color}'>{k}:</span> {v}"
 
         self.info.setText(txt)
-        self.set_cover(name)
-        self.update_favorite_button(name)
+        self.set_cover(unique_key)
+        self.update_favorite_button(unique_key)
 
-    def set_cover(self, name):
-        data = self.all_item_cache.get(name, {})
+    def set_cover(self, unique_key):
+        data = self.all_item_cache.get(unique_key, {})
         game_dir = data.get("game_dir", "")
+        name = data.get("name", unique_key)
         
         if game_dir:
             cover_path = os.path.join(game_dir, "cover.png")
@@ -932,16 +980,18 @@ class SMSLauncher(QWidget):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        name = self.current_name()
-        if name: self.set_cover(name)
+        unique_key = self.current_name()
+        if unique_key: self.set_cover(unique_key)
 
     def launch(self, *_):
         if (self.emu_thread is not None and self.emu_thread.isRunning()) or not self.isVisible(): return
-        name = self.current_name()
-        if not name and self.roms_data: name = self.roms_data[0][0]
+        unique_key = self.current_name()
+        if not unique_key and self.roms_data:
+            item = self.roms_data[0]
+            unique_key = f"{item[2]}_{item[0]}"
 
-        if name and self.settings["rom_dir"]:
-            data = self.all_item_cache.get(name)
+        if unique_key and self.settings["rom_dir"]:
+            data = self.all_item_cache.get(unique_key)
             if data and data.get("path"):
                 if hasattr(self, "gamepad"): self.gamepad.enabled = False
                 rom_path = data["path"]
