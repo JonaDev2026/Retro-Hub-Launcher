@@ -269,7 +269,7 @@ def main():
             save_json(meta_path, {
                 "title": official_title,
                 "year": year,
-5                "platform": get_clean_platform_name(libretro_sys),
+               "platform": get_clean_platform_name(libretro_sys),
                 "region": region,
                 "revision": revision
             })
