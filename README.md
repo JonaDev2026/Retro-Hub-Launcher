@@ -1,5 +1,7 @@
 # Retro Hub Launcher
 
+![Retro Hub Launcher Preview](preview.png)
+
 A professional, high-performance desktop frontend designed to manage and launch retro gaming ROMs. Written in Python utilizing PySide6 (Qt6) and Pygame, it features asynchronous background workers, multi-platform automated organization, native gamepad navigation, and robust dual-backend emulator integration (RetroArch and MAME).
 
 Specifically engineered and optimized for Debian 13 (Trixie) running strictly on an X11 / Xorg display server environment.
