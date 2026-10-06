@@ -170,7 +170,7 @@ def main():
 
     try:
         with open(log_path, "w", encoding="utf-8") as f:
-            f.write("=== WORKER STARTED (SMART THUMBNAIL CLEANER MODE) ===\n")
+            f.write("=== WORKER STARTED (FALLBACK BOXART MODE) ===\n")
     except Exception:
         pass
 
@@ -269,12 +269,11 @@ def main():
             save_json(meta_path, {
                 "title": official_title,
                 "year": year,
-               "platform": get_clean_platform_name(libretro_sys),
+                "platform": get_clean_platform_name(libretro_sys),
                 "region": region,
                 "revision": revision
             })
 
-            # --- GESTIONE DOWNLOAD THUMBNAIL INTELLIGENTE ---
             cover_path = os.path.join(game_dir, "cover.png")
             none_path = cover_path + ".none"
             
@@ -284,36 +283,14 @@ def main():
 
             if not os.path.exists(cover_path) and not os.path.exists(none_path):
                 target_title = official_title
-                if os.path.exists(meta_path):
-                    try:
-                        m_data = load_json(meta_path)
-                        if m_data.get("title"):
-                            target_title = m_data.get("title")
-                    except Exception:
-                        pass
+                if not target_title:
+                    target_title = rom_no_ext
 
-                # Pulizia intelligente: spezzettiamo il titolo tenendo solo le parentesi iniziali 
-                # finché non incontriamo tag come Beta, Rev, v1.1, Proto, Sample, [tr...], ecc.
-                parts = re.split(r'(\s*\(.*?\))', target_title)
-                clean_parts = []
-                for p in parts:
-                    if not p.strip():
-                        continue
-                    # Se il pezzo è una parentesi e contiene parole chiave di versione/revisione/beta/hack, interrompiamo
-                    if p.startswith('('):
-                        pl_lower = p.lower()
-                        if any(bad in pl_lower for bad in ['beta', 'rev', 'proto', 'sample', 'demo', 'alt', 'version', 'v1.', 'v2.', 'v3.', 'hack', 'transl', 'program']):
-                            break
-                    clean_parts.append(p)
-                
-                clean_thumb_title = "".join(clean_parts).strip()
-                if not clean_thumb_title:
-                    clean_thumb_title = re.sub(r'[\(\[].*?[\)\]]', '', target_title).strip()
-
-                safe_title = clean_thumb_title.replace(':', '_').replace('/', '_').replace('\\', '_')
+                safe_title = target_title.replace(':', '_').replace('/', '_').replace('\\', '_')
                 safe_title = ' '.join(safe_title.split())
 
-                subfolders = ["Named_Boxarts", "Named_Logos", "Named_Snaps", "Named_Titles"]
+                # Prima copertina in scatola, poi se fallisce prova il resto
+                subfolders = ["Named_Boxarts", "Named_Titles", "Named_Logos", "Named_Snaps"]
                 downloaded = False
 
                 for folder in subfolders:
@@ -339,7 +316,7 @@ def main():
                 if not downloaded:
                     try:
                         open(none_path, 'w').close()
-                        log_message(log_path, f"Nessuna immagine trovata per {target_title} (cercato come: {safe_title}).")
+                        log_message(log_path, f"Nessuna immagine trovata per: {safe_title}")
                     except Exception:
                         pass
 
