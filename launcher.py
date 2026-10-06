@@ -345,9 +345,10 @@ def get_color_for_brand(subfolder):
     return PLATFORM_COLORS.get(norm, COLOR_ACCENT)
 
 AUTHOR, YEAR = "Jonathan Sanfilippo", "2026"
-STATO = "#0c0c0c"
-FONDO, PANNELLO, CERCA = "#121212", "#131215", "#252428"
-TASTO, SCELTO, TESTO, GRIGIO = "#2c2c2c", "#3a3a3a", "#e0e0e0", "#9e9e9e"
+STATO = "#2c2c35"
+# FONDO, PANNELLO, CERCA = "#121212", "#131215", "#252428"
+FONDO, PANNELLO, CERCA = "#17171b", "#17171b", "#252428"
+TASTO, SCELTO, TESTO, GRIGIO = "#2c2c35", "#424250", "#e0e0e0", "#9e9e9e"
 IN_ONDA = "#3b2f4f"
 
 LANGS = {
@@ -1395,25 +1396,31 @@ class SMSLauncher(QWidget):
         m = self.meta.get(unique_key, {})
         
         name = data.get("name", unique_key)
+        rom_path = data.get("path", "")
+        filename_with_ext = os.path.basename(rom_path) if rom_path else name
+
         title = html.escape(m.get("title", name))
         year = html.escape(str(m.get("year", "?")))
         platform = html.escape(m.get("platform", data.get("subfolder", "")))
         region = html.escape(m.get("region", "World"))
         revision = html.escape(m.get("revision", "Original"))
+        filename_display = html.escape(filename_with_ext)
 
         rows = [
             (self.tr("year"), year),
             (self.tr("platform"), platform),
             (self.tr("region"), region),
-            (self.tr("revision"), revision)
+            (self.tr("revision"), revision),
+            ("ROM", filename_display)
         ]
 
         txt = f"<b>{title}</b>"
         LABEL_COLORS = {
-            self.tr("year"): "#0a84ff",
-            self.tr("platform"): "#30d158",
+            self.tr("year"): "#0089cf",
+            self.tr("platform"): "#26a69a",
             self.tr("region"): "#ff9f0a",
-            self.tr("revision"): "#bf5af2"
+            self.tr("revision"): "#ff70ef",
+            "ROM": "#b1b1b1"
         }
         for k, v in rows:
             color = LABEL_COLORS.get(k, "#ffffff")
