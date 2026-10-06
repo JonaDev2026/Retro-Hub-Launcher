@@ -1,46 +1,83 @@
 # Retro Hub Launcher
 
-Retro Hub Launcher is a modern, lightweight, and stylish desktop frontend written in Python using PySide6 (Qt) and Pygame. It is designed to manage and launch retro gaming ROMs effortlessly across multiple platforms, featuring automated background metadata fetching, artwork generation, gamepad support, and robust emulator integration (RetroArch and MAME).
+A professional, high-performance desktop frontend designed to manage and launch retro gaming ROMs. Written in Python utilizing PySide6 (Qt6) and Pygame, it features asynchronous background workers, multi-platform automated organization, native gamepad navigation, and robust dual-backend emulator integration (RetroArch and MAME).
+
+Specifically engineered and optimized for Debian 13 (Trixie) running strictly on an X11 / Xorg display server environment.
 
 ---
 
-## Key Features
+## 1. Complete System Dependencies & Environment Setup (Debian 13 / X11)
 
-* Multi-Platform Support: Automatically categorizes and lists ROMs for systems such as Sega Master System, Mega Drive/Genesis, Super Nintendo (SNES), Nintendo NES, Game Boy, Game Boy Advance, Nintendo 64, and Arcade/MAME.
-* Automated Background Worker: A dedicated background process (worker.py) handles ROM importing, metadata scraping, and cover art generation seamlessly.
-* Dynamic Search & Filtering: Real-time filtering by game title, release year, platform, and region using an intuitive search bar and dynamic sidebar.
-* Favorites System: Easily tag and filter your favorite games with a single keystroke or click.
-* Dual Emulator Backend Integration: 
-  * RetroArch: Automatically selects the appropriate Libretro core based on the platform.
-  * MAME: Fully configured for arcade titles, featuring automated custom -rompath support for system BIOS files and standard windowed execution (1280x720).
-* Gamepad Navigation: Full out-of-the-box gamepad support allowing you to navigate menus, select games, toggle favorites, and launch titles using standard joypad controls (/dev/input/js*).
-* Customizable Settings: Easily configure ROM directories, switch between Flatpak and native emulator packages, and change the user interface language (English and Italian supported).
+To run this application without rendering or input errors, execute the following command in your terminal to install all mandatory system packages, build tools, X11 utilities, and joystick drivers:
+
+sudo apt update && sudo apt install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-pyside6 \
+    python3-pygame \
+    flatpak \
+    x11-utils \
+    libgl1-mesa-dri \
+    libgl1-mesa-glx \
+    joystick \
+    udev
 
 ---
 
-## Project Structure
+## 2. Python Libraries Requirements
+
+The application relies on the following Python packages (automatically satisfied if installed via APT as shown above, or via pip):
+* PySide6 (>= 6.5.0) - Graphical user interface framework (Qt6 bindings).
+* Pygame (>= 2.1.0) - Low-level event handling and hardware subsystem hooks.
+* Built-in Python 3.10+ modules: os, sys, json, subprocess, threading, glob, hashlib, struct, select, time, re, html.
+
+---
+
+## 3. Emulator Backends & Runtimes
+
+The application integrates with both Flatpak and native package managers. For Debian 13 on X11, Flatpak is recommended for the latest stable emulator cores:
+
+* RetroArch (Flatpak):
+  flatpak install flathub org.libretro.RetroArch
+
+  Required Libretro Cores (managed via RetroArch online core updater):
+  - snes9x_libretro.so (Super Nintendo / SNES)
+  - fceumm_libretro.so (Nintendo NES)
+  - genesis_plus_gx_libretro.so (Sega Mega Drive / Master System)
+  - gambatte_libretro.so (Game Boy / Game Boy Color)
+  - vba_next_libretro.so (Game Boy Advance)
+  - mupen64plus_next_libretro.so (Nintendo 64)
+
+* MAME (Flatpak):
+  flatpak install flathub org.mamedev.MAME
+
+---
+
+## 4. Environment & Hardware Prerequisites (Debian 13 / X11)
+
+* Display Server: Must run under an Xorg/X11 session. Wayland is intentionally avoided due to window layering and rendering incompatibilities with legacy frontend architecture.
+* Gamepad Permissions: The background input thread polls /dev/input/js*. Ensure your user account belongs to the input group:
+  sudo usermod -aG input $USER
+  (Log out and log back in for changes to apply).
+
+---
+
+## 5. Project Directory Structure
 
 sms_launcher/
-├── launcher.py        # Main GUI application
-├── worker.py          # Background metadata and asset scraper
-├── roms/              # Default directory for your game ROMs
-├── bios/              # Directory for system BIOS files required by MAME
-└── import/            # Drop folder for automatic ROM importing
+├── launcher.py        # Main graphical user interface (PySide6)
+├── worker.py          # Background asynchronous metadata & asset scraper
+├── roms/              # Root directory for your game ROM collections
+├── bios/              # Mandatory system BIOS files for MAME / Arcade titles
+└── import/            # Watch folder for automatic ROM ingestion
 
 ---
 
-## Requirements
+## 6. Quick Start Guide
 
-* Python 3.10+
-* PySide6
-* Pygame
-* Emulators: RetroArch and/or MAME (supports both Flatpak and native installations).
-
----
-
-## Usage
-
-1. Place your ROM files inside the roms/ directory (or configure a custom path via the Settings menu).
-2. Place any required system BIOS files (e.g., for Neo Geo or Arcade systems) inside the bios/ directory.
-3. Run the launcher:
+1. Ensure all system packages and dependencies listed in Section 1 are installed.
+2. Place your ROM files inside the roms/ directory.
+3. Place required system BIOS files (e.g., neogeo.zip) inside the bios/ directory.
+4. Run the launcher:
    python3 launcher.py
