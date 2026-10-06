@@ -17,9 +17,9 @@ A lightweight and modern retro ROM launcher written in Python with PySide6, desi
 Follow these steps to set up the environment and install all necessary dependencies on Debian 13 X11.
 
 ### 1. Install System Packages and Python
-Open the terminal and run this command to install Python, pip, Qt6 libraries, gamepad support (pygame), and Flatpak:
+Open the terminal and run this command to install Python, pip, Qt6 libraries, gamepad support (pygame), the MessagePack parser for RDB databases, and Flatpak:
 
-sudo apt update && sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyside6 python3-pygame flatpak
+sudo apt update && sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyside6 python3-pygame python3-msgpack flatpak
 
 ### 2. Configure RetroArch via Flatpak
 The launcher is configured to run emulators using RetroArch via Flatpak.
@@ -36,12 +36,12 @@ The launcher is configured to run emulators using RetroArch via Flatpak.
 
 ## How to Import Games (Automatic Import)
 
-You do not need to manually create complex directory structures inside the `roms/` folder. The application uses an automated background worker (`worker.py`) that handles everything through official Libretro databases (DAT files).
+You do not need to manually create complex directory structures inside the `roms/` folder. The application uses an automated background worker (`worker.py`) that handles everything through official Libretro databases and intelligent metadata parsing.
 
 1. Go to the application directory and open (or create) the **`import/`** folder.
 2. Inside it, create a subfolder named after the platform (for example **`snes`**, **`megadrive`**, **`nes`**, etc.).
 3. Place your files in **`.zip`** format (or supported uncompressed ROMs like `.sfc`, `.md`, `.nes`) directly inside that subfolder (e.g., `import/snes/game.zip`).
-4. When you launch the application or refresh the ROM library, the built-in worker will automatically read the files, download the correct metadata, create the final structure inside **`roms/`**, and download official box art covers (`cover.png`).
+4. When you launch the application or refresh the ROM library, the built-in worker will automatically read the files, parse official metadata via RDB, create the final structure inside **`roms/`**, and download official box art covers (`cover.png`) applying an intelligent cleaning filter to handle regions, languages, and filter out unwanted revision or beta tags.
 
 ---
 
@@ -62,6 +62,6 @@ The launcher supports controllers connected via Linux (`/dev/input/js*`):
 
 ## Launching the Launcher
 
-1. Make sure you have `launcher.py` and `worker.py` in the same folder.
+1. Make sure you have `launcher.py`, `worker.py`, and other required modules in the same folder.
 2. Start the program by running from the terminal:
    python3 launcher.py
