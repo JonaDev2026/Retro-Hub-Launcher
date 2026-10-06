@@ -1,5 +1,0 @@
-=== WORKER STARTED (FALLBACK BOXART MODE) ===
-Match RDB trovato per 'Alex Kidd in Miracle World (USA, Europe)' con chiave 'alex kidd in miracle world (usa, europe)' -> Alex Kidd in Miracle World (USA, Europe) (1986)
-Tentativo download (Named_Boxarts): https://raw.githubusercontent.com/libretro-thumbnails/Sega_-_Master_System_-_Mark_III/master/Named_Boxarts/Alex%20Kidd%20in%20Miracle%20World%20%28USA%2C%20Europe%29.png
-Immagine scaricata con successo da Named_Boxarts per: Alex Kidd in Miracle World (USA, Europe)
-=== PROCESSING COMPLETED SUCCESSFULLY ===
