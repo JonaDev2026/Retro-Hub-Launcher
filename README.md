@@ -1,67 +1,46 @@
 # Retro Hub Launcher
 
-A lightweight and modern retro ROM launcher written in Python with PySide6, designed to integrate with RetroArch via Flatpak and handle launching various systems with full gamepad support.
+Retro Hub Launcher is a modern, lightweight, and stylish desktop frontend written in Python using PySide6 (Qt) and Pygame. It is designed to manage and launch retro gaming ROMs effortlessly across multiple platforms, featuring automated background metadata fetching, artwork generation, gamepad support, and robust emulator integration (RetroArch and MAME).
 
 ---
 
-## System Requirements
+## Key Features
 
-- Operating System: Debian 13 (Trixie)
-- Graphics Session: X11
-- Python: 3.11 or higher
-
----
-
-## Dependencies and Installation
-
-Follow these steps to set up the environment and install all necessary dependencies on Debian 13 X11.
-
-### 1. Install System Packages and Python
-Open the terminal and run this command to install Python, pip, Qt6 libraries, gamepad support (pygame), the MessagePack parser for RDB databases, and Flatpak:
-
-sudo apt update && sudo apt install -y python3 python3-pip python3-pyqt6 python3-pyside6 python3-pygame python3-msgpack flatpak
-
-### 2. Configure RetroArch via Flatpak
-The launcher is configured to run emulators using RetroArch via Flatpak.
-
-1. Add the Flathub repository:
-   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-2. Install RetroArch:
-   flatpak install flathub org.libretro.RetroArch
-
-3. Launch RetroArch at least once and download the desired cores (e.g., Snes9x, Genesis Plus GX, FCEumm, etc.) from the internal menu (Online Updater -> Core Downloader). They will be saved in ~/.var/app/org.libretro.RetroArch/config/retroarch/cores/
+* Multi-Platform Support: Automatically categorizes and lists ROMs for systems such as Sega Master System, Mega Drive/Genesis, Super Nintendo (SNES), Nintendo NES, Game Boy, Game Boy Advance, Nintendo 64, and Arcade/MAME.
+* Automated Background Worker: A dedicated background process (worker.py) handles ROM importing, metadata scraping, and cover art generation seamlessly.
+* Dynamic Search & Filtering: Real-time filtering by game title, release year, platform, and region using an intuitive search bar and dynamic sidebar.
+* Favorites System: Easily tag and filter your favorite games with a single keystroke or click.
+* Dual Emulator Backend Integration: 
+  * RetroArch: Automatically selects the appropriate Libretro core based on the platform.
+  * MAME: Fully configured for arcade titles, featuring automated custom -rompath support for system BIOS files and standard windowed execution (1280x720).
+* Gamepad Navigation: Full out-of-the-box gamepad support allowing you to navigate menus, select games, toggle favorites, and launch titles using standard joypad controls (/dev/input/js*).
+* Customizable Settings: Easily configure ROM directories, switch between Flatpak and native emulator packages, and change the user interface language (English and Italian supported).
 
 ---
 
-## How to Import Games (Automatic Import)
+## Project Structure
 
-You do not need to manually create complex directory structures inside the `roms/` folder. The application uses an automated background worker (`worker.py`) that handles everything through official Libretro databases and intelligent metadata parsing.
-
-1. Go to the application directory and open (or create) the **`import/`** folder.
-2. Inside it, create a subfolder named after the platform (for example **`snes`**, **`megadrive`**, **`nes`**, etc.).
-3. Place your files in **`.zip`** format (or supported uncompressed ROMs like `.sfc`, `.md`, `.nes`) directly inside that subfolder (e.g., `import/snes/game.zip`).
-4. When you launch the application or refresh the ROM library, the built-in worker will automatically read the files, parse official metadata via RDB, create the final structure inside **`roms/`**, and download official box art covers (`cover.png`) applying an intelligent cleaning filter to handle regions, languages, and filter out unwanted revision or beta tags.
-
----
-
-## Interface and Usage
-
-- **Left Panel (Search & List):** Type in the search bar to filter games in real-time. Use the list to browse your library.
-- **Center Panel (Details & Actions):** Displays metadata (Year, Platform, Region) and cover art. Click **Play** to start the game, or **Favorite** to toggle it in your favorites.
-- **Right Panel (Platforms):** Filter the view between "All games", "Favorites", and specific platforms.
-- **Menu Bar:** Use *File > Refresh ROMs* to reload your library, or *Settings* to change the ROM folder or language.
-
-### Gamepad Controls
-The launcher supports controllers connected via Linux (`/dev/input/js*`):
-- **D-Pad / Left Stick:** Navigate through games or the platform menu.
-- **Button A (Bottom):** Launch the selected game.
-- **Button B (Right):** Add or remove the game from favorites.
+sms_launcher/
+├── launcher.py        # Main GUI application
+├── worker.py          # Background metadata and asset scraper
+├── roms/              # Default directory for your game ROMs
+├── bios/              # Directory for system BIOS files required by MAME
+└── import/            # Drop folder for automatic ROM importing
 
 ---
 
-## Launching the Launcher
+## Requirements
 
-1. Make sure you have `launcher.py`, `worker.py`, and other required modules in the same folder.
-2. Start the program by running from the terminal:
+* Python 3.10+
+* PySide6
+* Pygame
+* Emulators: RetroArch and/or MAME (supports both Flatpak and native installations).
+
+---
+
+## Usage
+
+1. Place your ROM files inside the roms/ directory (or configure a custom path via the Settings menu).
+2. Place any required system BIOS files (e.g., for Neo Geo or Arcade systems) inside the bios/ directory.
+3. Run the launcher:
    python3 launcher.py
