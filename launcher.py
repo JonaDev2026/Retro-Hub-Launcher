@@ -1,5 +1,4 @@
 import glob
-import hashlib
 import html
 import json
 import os
@@ -11,10 +10,10 @@ import sys
 import time
 import pygame
 
-from PySide6.QtCore import QRect, QSize, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import (QAction, QActionGroup, QColor, QIcon,
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor, QIcon,
                            QPainter, QPalette, QPen, QPixmap, QKeySequence)
-from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QApplication, QColorDialog, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMessageBox, QSplitter, QStyle, QStyledItemDelegate,
                                QListWidget, QListWidgetItem, QMenuBar,
                                QPushButton, QVBoxLayout, QWidget, QSizePolicy, QMenu)
@@ -24,6 +23,7 @@ IMG_DIR = os.path.join(CONFIG_DIR, "img")
 META_FILE = os.path.join(CONFIG_DIR, "meta.json")
 PROGRESS_FILE = os.path.join(CONFIG_DIR, "worker_progress.json")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
+CUSTOM_COLORS_FILE = os.path.join(CONFIG_DIR, "custom_colors.json")
 LOCK_FILE = os.path.join(CONFIG_DIR, "worker.lock")
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -45,31 +45,304 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 DOT = 24
 COLOR_NEUTRAL = "#ffffff"
 COLOR_WORKER_LABEL = "#ffd60a"
+COLOR_ACCENT = "#0089cf"
 
-BRAND_PALETTE = [
-    "#0089cf", "#ff375f", "#30d158", "#ff9f0a", "#bf5af2",
-    "#5ac8fa", "#ffcc00", "#ff2d55", "#5856d6", "#4cd964",
-    "#d1d1d6", "#ff9500"
-]
-
-FIXED_BRAND_COLORS = {
-    "sega": "#0089cf",
-    "nintendo": "#ff375f",
-    "sony": "#d1d1d6",
-    "atari": "#ff9f0a",
-    "snk": "#ffcc00",
-    "nec": "#bf5af2"
+SHORT_PLATFORM_NAMES = {
+    "amstrad - cpc": "Amstrad CPC",
+    "amstrad - gx4000": "Amstrad GX4000",
+    "apple - ii": "Apple II",
+    "arduboy inc - arduboy": "Arduboy",
+    "atari - 2600": "Atari 2600",
+    "atari - 5200": "Atari 5200",
+    "atari - 7800": "Atari 7800",
+    "atari - 8-bit family": "Atari 8-bit",
+    "atari - jaguar": "Atari Jaguar",
+    "atari - lynx": "Atari Lynx",
+    "atomiswave": "Atomiswave",
+    "bandai - wonderswan": "WonderSwan",
+    "bandai - wonderswan color": "WonderSwan Color",
+    "cannonball": "Cannonball",
+    "casio - loopy": "Casio Loopy",
+    "casio - pv-1000": "Casio PV-1000",
+    "cave story": "Cave Story",
+    "chailove": "ChaiLove",
+    "chip-8": "CHIP-8",
+    "coleco - colecovision": "ColecoVision",
+    "commodore - 64": "Commodore 64",
+    "commodore - amiga": "Amiga",
+    "commodore - cdtv": "Commodore CDTV",
+    "commodore - pet": "Commodore PET",
+    "commodore - plus-4": "Commodore Plus-4",
+    "dice": "DICE",
+    "dinothawr": "Dinothawr",
+    "doom": "DOOM",
+    "dos": "DOS",
+    "elektor - tv games computer": "Elektor TV Games",
+    "emerson - arcadia 2001": "Arcadia 2001",
+    "enterprise - 128": "Enterprise 128",
+    "epoch - cassette vision": "Cassette Vision",
+    "epoch - super cassette vision": "Super Cassette Vision",
+    "fairchild - channel f": "Channel F",
+    "fbneo - arcade games": "FBNeo Arcade",
+    "flashback": "Flashback",
+    "funtech - super acan": "Super Acan",
+    "gamepark - gp32": "GP32",
+    "gce - vectrex": "Vectrex",
+    "handheld electronic game": "Handheld Electronic",
+    "hartung - game master": "Game Master",
+    "infocom - z-machine": "Z-Machine",
+    "interton - vc 4000": "VC 4000",
+    "jump 'n bump": "Jump 'n Bump",
+    "leapfrog - leapster learning game system": "Leapster",
+    "lowres nx": "LowRes NX",
+    "lutro": "Lutro",
+    "magnavox - odyssey2": "Odyssey2",
+    "mame": "Arcade (MAME)",
+    "mame 2000": "MAME 2000",
+    "mame 2003": "MAME 2003",
+    "mame 2010": "MAME 2010",
+    "mame 2016": "MAME 2016",
+    "mattel - intellivision": "Intellivision",
+    "microsoft - msx": "MSX",
+    "microsoft - msx2": "MSX2",
+    "microw8": "MicroW8",
+    "mobile - j2me": "Mobile J2ME",
+    "nec - pc-8001 - pc-8801": "NEC PC-8801",
+    "nec - pc-88": "NEC PC-88",
+    "nec - pc-98": "NEC PC-98",
+    "nec - pc engine cd - turbografx-cd": "TurboGrafx-CD",
+    "nec - pc engine supergrafx": "SuperGrafx",
+    "nec - pc engine - turbografx 16": "PC Engine",
+    "nec - pc-fx": "PC-FX",
+    "nintendo - family computer disk system": "Famicom Disk System",
+    "nintendo - game boy": "Game Boy",
+    "nintendo - game boy advance": "Game Boy Advance",
+    "nintendo - game boy color": "Game Boy Color",
+    "nintendo - gamecube": "GameCube",
+    "nintendo - nintendo 3ds": "Nintendo 3DS",
+    "nintendo - nintendo 64": "Nintendo 64",
+    "nintendo - nintendo 64dd": "Nintendo 64DD",
+    "nintendo - nintendo ds": "Nintendo DS",
+    "nintendo - nintendo entertainment system": "Nintendo",
+    "nintendo - pokemon mini": "Pokemon Mini",
+    "nintendo - satellaview": "Satellaview",
+    "nintendo - sufami turbo": "Sufami Turbo",
+    "nintendo - super nintendo entertainment system": "Super Nintendo",
+    "nintendo - virtual boy": "Virtual Boy",
+    "nintendo - wii": "Nintendo Wii",
+    "nintendo - wii (digital)": "Nintendo Wii (Digital)",
+    "philips - cd-i": "Philips CD-i",
+    "philips - videopac+": "Videopac+",
+    "pico-8": "PICO-8",
+    "quake": "Quake",
+    "quake ii": "Quake II",
+    "rca - studio ii": "RCA Studio II",
+    "rick dangerous": "Rick Dangerous",
+    "rpg maker": "RPG Maker",
+    "scummvm": "ScummVM",
+    "sega - dreamcast": "Sega Dreamcast",
+    "sega - game gear": "Game Gear",
+    "sega - master system - mark iii": "Sega Master System",
+    "sega - mega-cd - sega cd": "Sega CD",
+    "sega - mega drive - genesis": "Sega Mega Drive",
+    "sega - naomi": "Sega Naomi",
+    "sega - naomi 2": "Sega Naomi 2",
+    "sega - pico": "Sega PICO",
+    "sega - saturn": "Sega Saturn",
+    "sega - sg-1000": "Sega SG-1000",
+    "sharp - x1": "Sharp X1",
+    "sharp - x68000": "Sharp X68000",
+    "sinclair - zx 81": "Sinclair ZX81",
+    "sinclair - zx spectrum": "ZX Spectrum",
+    "sinclair - zx spectrum +3": "ZX Spectrum +3",
+    "snk - neo geo": "Neo Geo",
+    "snk - neo geo cd": "Neo Geo CD",
+    "snk - neo geo pocket": "Neo Geo Pocket",
+    "sony - playstation": "PlayStation",
+    "sony - playstation 2": "PlayStation 2",
+    "sony - playstation 3": "PlayStation 3",
+    "sony - playstation 3 (psn)": "PlayStation 3 (PSN)",
+    "sony - playstation portable": "PlayStation Portable",
+    "sony - playstation portable (psn)": "PlayStation Portable (PSN)",
+    "sony - playstation vita": "PlayStation Vita",
+    "spectravideo - svi-318 - svi-328": "Spectravideo SVI",
+    "the 3do company - 3do": "3DO",
+    "thomson - moto": "Thomson MOTO",
+    "tic-80": "TIC-80",
+    "videoton - tv-computer": "Videoton TV-Computer",
+    "vircon32": "Vircon32",
+    "vtech - creativision": "CreatiVision",
+    "vtech - v.smile": "V.Smile",
+    "wasm-4": "WASM-4",
+    "watara - supervision": "Supervision",
+    "wolfenstein 3d": "Wolfenstein 3D"
 }
+
+PLATFORM_COLORS = {
+    "amstrad - cpc": "#5856d6",
+    "amstrad - gx4000": "#5856d6",
+    "apple - ii": "#d1d1d6",
+    "arduboy inc - arduboy": "#ff9500",
+    "atari - 2600": "#ff9f0a",
+    "atari - 5200": "#ff9f0a",
+    "atari - 7800": "#ff9f0a",
+    "atari - 8-bit family": "#ff9f0a",
+    "atari - jaguar": "#ff9f0a",
+    "atari - lynx": "#ff9f0a",
+    "atomiswave": "#ffcc00",
+    "bandai - wonderswan": "#ff375f",
+    "bandai - wonderswan color": "#ff375f",
+    "cannonball": "#d1d1d6",
+    "casio - loopy": "#bf5af2",
+    "casio - pv-1000": "#bf5af2",
+    "cave story": "#30d158",
+    "chailove": "#30d158",
+    "chip-8": "#d1d1d6",
+    "coleco - colecovision": "#ff9500",
+    "commodore - 64": "#4cd964",
+    "commodore - amiga": "#4cd964",
+    "commodore - cdtv": "#4cd964",
+    "commodore - pet": "#4cd964",
+    "commodore - plus-4": "#4cd964",
+    "dice": "#d1d1d6",
+    "dinothawr": "#30d158",
+    "doom": "#ff2d55",
+    "dos": "#5856d6",
+    "elektor - tv games computer": "#d1d1d6",
+    "emerson - arcadia 2001": "#ff9500",
+    "enterprise - 128": "#5856d6",
+    "epoch - cassette vision": "#ffcc00",
+    "epoch - super cassette vision": "#ffcc00",
+    "fairchild - channel f": "#d1d1d6",
+    "fbneo - arcade games": "#ffcc00",
+    "flashback": "#30d158",
+    "funtech - super acan": "#ff375f",
+    "gamepark - gp32": "#5ac8fa",
+    "gce - vectrex": "#ff9f0a",
+    "handheld electronic game": "#d1d1d6",
+    "hartung - game master": "#ff9500",
+    "infocom - z-machine": "#5856d6",
+    "interton - vc 4000": "#d1d1d6",
+    "jump 'n bump": "#30d158",
+    "leapfrog - leapster learning game system": "#ff375f",
+    "lowres nx": "#30d158",
+    "lutro": "#30d158",
+    "magnavox - odyssey2": "#ff9500",
+    "mame": "#ffcc00",
+    "mame 2000": "#ffcc00",
+    "mame 2003": "#ffcc00",
+    "mame 2010": "#ffcc00",
+    "mame 2016": "#ffcc00",
+    "mattel - intellivision": "#ff9500",
+    "microsoft - msx": "#5856d6",
+    "microsoft - msx2": "#5856d6",
+    "microw8": "#30d158",
+    "mobile - j2me": "#5ac8fa",
+    "nec - pc-8001 - pc-8801": "#bf5af2",
+    "nec - pc-88": "#bf5af2",
+    "nec - pc-98": "#bf5af2",
+    "nec - pc engine cd - turbografx-cd": "#bf5af2",
+    "nec - pc engine supergrafx": "#bf5af2",
+    "nec - pc engine - turbografx 16": "#bf5af2",
+    "nec - pc-fx": "#bf5af2",
+    "nintendo - family computer disk system": "#ff375f",
+    "nintendo - game boy": "#ff375f",
+    "nintendo - game boy advance": "#ff375f",
+    "nintendo - game boy color": "#ff375f",
+    "nintendo - gamecube": "#ff375f",
+    "nintendo - nintendo 3ds": "#ff375f",
+    "nintendo - nintendo 64": "#2ec27e",
+    "nintendo - nintendo 64dd": "#ff375f",
+    "nintendo - nintendo ds": "#ff375f",
+    "nintendo - nintendo entertainment system": "#e5a50a",
+    "nintendo - pokemon mini": "#ff375f",
+    "nintendo - satellaview": "#ff375f",
+    "nintendo - sufami turbo": "#ff375f",
+    "nintendo - super nintendo entertainment system": "#ff375f",
+    "nintendo - virtual boy": "#ff375f",
+    "nintendo - wii": "#ff375f",
+    "nintendo - wii (digital)": "#ff375f",
+    "philips - cd-i": "#5856d6",
+    "philips - videopac+": "#5856d6",
+    "pico-8": "#30d158",
+    "quake": "#ff2d55",
+    "quake ii": "#ff2d55",
+    "rca - studio ii": "#d1d1d6",
+    "rick dangerous": "#30d158",
+    "rpg maker": "#30d158",
+    "scummvm": "#5856d6",
+    "sega - dreamcast": "#0089cf",
+    "sega - game gear": "#0089cf",
+    "sega - master system - mark iii": "#0089cf",
+    "sega - mega-cd - sega cd": "#0089cf",
+    "sega - mega drive - genesis": "#0089cf",
+    "sega - naomi": "#0089cf",
+    "sega - naomi 2": "#0089cf",
+    "sega - pico": "#0089cf",
+    "sega - saturn": "#0089cf",
+    "sega - sg-1000": "#0089cf",
+    "sharp - x1": "#d1d1d6",
+    "sharp - x68000": "#d1d1d6",
+    "sinclair - zx 81": "#d1d1d6",
+    "sinclair - zx spectrum": "#d1d1d6",
+    "sinclair - zx spectrum +3": "#d1d1d6",
+    "snk - neo geo": "#ffcc00",
+    "snk - neo geo cd": "#ffcc00",
+    "snk - neo geo pocket": "#ffcc00",
+    "sony - playstation": "#d1d1d6",
+    "sony - playstation 2": "#d1d1d6",
+    "sony - playstation 3": "#d1d1d6",
+    "sony - playstation 3 (psn)": "#d1d1d6",
+    "sony - playstation portable": "#d1d1d6",
+    "sony - playstation portable (psn)": "#d1d1d6",
+    "sony - playstation vita": "#d1d1d6",
+    "spectravideo - svi-318 - svi-328": "#d1d1d6",
+    "the 3do company - 3do": "#ff9500",
+    "thomson - moto": "#5856d6",
+    "tic-80": "#30d158",
+    "videoton - tv-computer": "#d1d1d6",
+    "vircon32": "#30d158",
+    "vtech - creativision": "#d1d1d6",
+    "vtech - v.smile": "#d1d1d6",
+    "wasm-4": "#30d158",
+    "watara - supervision": "#ff9500",
+    "wolfenstein 3d": "#ff2d55"
+}
+
+SUB_COLOR = {}
+
+def load_json(path):
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_custom_colors(custom_colors):
+    try:
+        with open(CUSTOM_COLORS_FILE, "w", encoding="utf-8") as f:
+            json.dump(custom_colors, f, indent=2)
+    except Exception:
+        pass
+
+_custom_colors = load_json(CUSTOM_COLORS_FILE)
+if isinstance(_custom_colors, dict):
+    for _k, _v in _custom_colors.items():
+        PLATFORM_COLORS[_k] = _v
+        SUB_COLOR[_k] = _v
+
+def _norm_sub(raw):
+    return raw.replace("_-_", " - ").replace("_", " ").strip().lower() if raw else ""
 
 def get_color_for_brand(subfolder):
     if not subfolder:
-        return BRAND_PALETTE[0]
-    sub_lower = subfolder.lower()
-    for brand, color in FIXED_BRAND_COLORS.items():
-        if brand in sub_lower:
-            return color
-    h = int(hashlib.md5(subfolder.encode('utf-8')).hexdigest(), 16)
-    return BRAND_PALETTE[h % len(BRAND_PALETTE)]
+        return COLOR_ACCENT
+    if subfolder in SUB_COLOR:
+        return SUB_COLOR[subfolder]
+    norm = _norm_sub(subfolder)
+    return PLATFORM_COLORS.get(norm, COLOR_ACCENT)
 
 AUTHOR, YEAR = "Jonathan Sanfilippo", "2026"
 STATO = "#0c0c0c"
@@ -166,7 +439,7 @@ QMenu::separator {{ height: 1px; background: {SCELTO}; margin: 4px 0; }}
 QLineEdit {{ background: {CERCA}; color: {TESTO}; border: none; border-radius: 18px;
             padding: 0 14px 0 4px; min-height: 36px; selection-background-color: {IN_ONDA}; }}
 QListWidget {{ background: {PANNELLO}; border: none; outline: 0; }}
-QListWidget:focus {{ border: 1px solid {BRAND_PALETTE[0]}; }}
+QListWidget[gamepad="true"] {{ border: 1px solid {COLOR_ACCENT}; }}
 QListWidget::item:selected, QListWidget::item:selected:!active
     {{ background: {CERCA}; color: #ffffff; }}
 QPushButton {{ background: {TASTO}; color: {TESTO}; border: none; border-radius: 6px;
@@ -223,7 +496,7 @@ class GameDelegate(QStyledItemDelegate):
 
         year_str = index.data(Qt.UserRole + 1) or ""
         subfolder_str = index.data(Qt.UserRole + 5) or ""
-        dot_color = index.data(Qt.UserRole + 2) or BRAND_PALETTE[0]
+        dot_color = index.data(Qt.UserRole + 2) or COLOR_ACCENT
 
         if year_str:
             painter.setPen(QColor(GRIGIO))
@@ -257,15 +530,6 @@ class SearchBox(QLineEdit):
         else:
             super().keyPressEvent(e)
 
-def load_json(path):
-    if os.path.exists(path):
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
 def save_settings(settings):
     try:
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -273,147 +537,14 @@ def save_settings(settings):
     except Exception:
         pass
 
-# Dizionario completo per la normalizzazione dei nomi nella GUI
-SHORT_PLATFORM_NAMES = {
-    "amstrad - cpc": "Amstrad CPC",
-    "amstrad - gx4000": "Amstrad GX4000",
-    "apple - ii": "Apple II",
-    "arduboy inc - arduboy": "Arduboy",
-    "atari - 2600": "Atari 2600",
-    "atari - 5200": "Atari 5200",
-    "atari - 7800": "Atari 7800",
-    "atari - 8-bit family": "Atari 8-bit",
-    "atari - jaguar": "Atari Jaguar",
-    "atari - lynx": "Atari Lynx",
-    "atomiswave": "Atomiswave",
-    "bandai - wonderswan": "WonderSwan",
-    "bandai - wonderswan color": "WonderSwan Color",
-    "cannonball": "Cannonball",
-    "casio - loopy": "Casio Loopy",
-    "casio - pv-1000": "Casio PV-1000",
-    "cave story": "Cave Story",
-    "chailove": "ChaiLove",
-    "chip-8": "CHIP-8",
-    "coleco - colecovision": "ColecoVision",
-    "commodore - 64": "Commodore 64",
-    "commodore - amiga": "Amiga",
-    "commodore - cdtv": "Commodore CDTV",
-    "commodore - pet": "Commodore PET",
-    "commodore - plus-4": "Commodore Plus-4",
-    "dice": "DICE",
-    "dinothawr": "Dinothawr",
-    "doom": "DOOM",
-    "dos": "DOS",
-    "elektor - tv games computer": "Elektor TV Games",
-    "emerson - arcadia 2001": "Arcadia 2001",
-    "enterprise - 128": "Enterprise 128",
-    "epoch - cassette vision": "Cassette Vision",
-    "epoch - super cassette vision": "Super Cassette Vision",
-    "fairchild - channel f": "Channel F",
-    "fbneo - arcade games": "FBNeo Arcade",
-    "flashback": "Flashback",
-    "funtech - super acan": "Super Acan",
-    "gamepark - gp32": "GP32",
-    "gce - vectrex": "Vectrex",
-    "handheld electronic game": "Handheld Electronic",
-    "hartung - game master": "Game Master",
-    "infocom - z-machine": "Z-Machine",
-    "interton - vc 4000": "VC 4000",
-    "jump 'n bump": "Jump 'n Bump",
-    "leapfrog - leapster learning game system": "Leapster",
-    "lowres nx": "LowRes NX",
-    "lutro": "Lutro",
-    "magnavox - odyssey2": "Odyssey2",
-    "mame": "Arcade (MAME)",
-    "mame 2000": "MAME 2000",
-    "mame 2003": "MAME 2003",
-    "mame 2010": "MAME 2010",
-    "mame 2016": "MAME 2016",
-    "mattel - intellivision": "Intellivision",
-    "microsoft - msx": "MSX",
-    "microsoft - msx2": "MSX2",
-    "microw8": "MicroW8",
-    "mobile - j2me": "Mobile J2ME",
-    "nec - pc-8001 - pc-8801": "NEC PC-8801",
-    "nec - pc-88": "NEC PC-88",
-    "nec - pc-98": "NEC PC-98",
-    "nec - pc engine cd - turbografx-cd": "TurboGrafx-CD",
-    "nec - pc engine supergrafx": "SuperGrafx",
-    "nec - pc engine - turbografx 16": "PC Engine",
-    "nec - pc-fx": "PC-FX",
-    "nintendo - family computer disk system": "Famicom Disk System",
-    "nintendo - game boy": "Game Boy",
-    "nintendo - game boy advance": "Game Boy Advance",
-    "nintendo - game boy color": "Game Boy Color",
-    "nintendo - gamecube": "GameCube",
-    "nintendo - nintendo 3ds": "Nintendo 3DS",
-    "nintendo - nintendo 64": "Nintendo 64",
-    "nintendo - nintendo 64dd": "Nintendo 64DD",
-    "nintendo - nintendo ds": "Nintendo DS",
-    "nintendo - nintendo entertainment system": "NES",
-    "nintendo - pokemon mini": "Pokemon Mini",
-    "nintendo - satellaview": "Satellaview",
-    "nintendo - sufami turbo": "Sufami Turbo",
-    "nintendo - super nintendo entertainment system": "Super Nintendo",
-    "nintendo - virtual boy": "Virtual Boy",
-    "nintendo - wii": "Nintendo Wii",
-    "nintendo - wii (digital)": "Nintendo Wii (Digital)",
-    "philips - cd-i": "Philips CD-i",
-    "philips - videopac+": "Videopac+",
-    "pico-8": "PICO-8",
-    "quake": "Quake",
-    "quake ii": "Quake II",
-    "rca - studio ii": "RCA Studio II",
-    "rick dangerous": "Rick Dangerous",
-    "rpg maker": "RPG Maker",
-    "scummvm": "ScummVM",
-    "sega - dreamcast": "Sega Dreamcast",
-    "sega - game gear": "Game Gear",
-    "sega - master system - mark iii": "Sega Master System",
-    "sega - mega-cd - sega cd": "Sega CD",
-    "sega - mega drive - genesis": "Sega Mega Drive",
-    "sega - naomi": "Sega Naomi",
-    "sega - naomi 2": "Sega Naomi 2",
-    "sega - pico": "Sega PICO",
-    "sega - saturn": "Sega Saturn",
-    "sega - sg-1000": "Sega SG-1000",
-    "sharp - x1": "Sharp X1",
-    "sharp - x68000": "Sharp X68000",
-    "sinclair - zx 81": "Sinclair ZX81",
-    "sinclair - zx spectrum": "ZX Spectrum",
-    "sinclair - zx spectrum +3": "ZX Spectrum +3",
-    "snk - neo geo": "Neo Geo",
-    "snk - neo geo cd": "Neo Geo CD",
-    "snk - neo geo pocket": "Neo Geo Pocket",
-    "sony - playstation": "PlayStation",
-    "sony - playstation 2": "PlayStation 2",
-    "sony - playstation 3": "PlayStation 3",
-    "sony - playstation 3 (psn)": "PlayStation 3 (PSN)",
-    "sony - playstation portable": "PlayStation Portable",
-    "sony - playstation portable (psn)": "PlayStation Portable (PSN)",
-    "sony - playstation vita": "PlayStation Vita",
-    "spectravideo - svi-318 - svi-328": "Spectravideo SVI",
-    "the 3do company - 3do": "3DO",
-    "thomson - moto": "Thomson MOTO",
-    "tic-80": "TIC-80",
-    "videoton - tv-computer": "Videoton TV-Computer",
-    "vircon32": "Vircon32",
-    "vtech - creativision": "CreatiVision",
-    "vtech - v.smile": "V.Smile",
-    "wasm-4": "WASM-4",
-    "watara - supervision": "Supervision",
-    "wolfenstein 3d": "Wolfenstein 3D"
-}
-
 def clean_platform_display(sub):
     if not sub: 
         return ""
-    # Normalizza la stringa in ingresso per matcharla col dizionario
     key = sub.replace("_-_", " - ").replace("_", " ").strip().lower()
     if key in SHORT_PLATFORM_NAMES:
         return SHORT_PLATFORM_NAMES[key]
-    # Fallback sicuro se per caso arriva una stringa non censita
     return sub.replace("_-_", " ").replace("-", " ").replace("_", " ")
+
 def list_roms_recursive(rom_dir):
     results = []
     if not rom_dir or not os.path.isdir(rom_dir):
@@ -429,6 +560,9 @@ def list_roms_recursive(rom_dir):
                 parts = rel_path.split(os.sep)
                 raw_sub = parts[0] if len(parts) > 0 and parts[0] != "." else ""
                 subfolder = clean_platform_display(raw_sub)
+                _c = PLATFORM_COLORS.get(_norm_sub(raw_sub))
+                if _c and subfolder and subfolder not in SUB_COLOR:
+                    SUB_COLOR[subfolder] = _c
                 results.append((base_name, full_path, subfolder, root))
     return sorted(results, key=lambda x: x[0].lower())
 
@@ -548,13 +682,11 @@ class EmulatorRunnerThread(QThread):
         sub_lower = self.subfolder.lower()
         is_mame = (self.emulator_choice == "mame" or "mame" in sub_lower or "arcade" in sub_lower)
 
-        # Gestione percorso BIOS nella root del progetto
         bios_dir = os.path.join(self.script_dir, "bios")
         rom_dir_path = os.path.dirname(self.rom_path)
         rompath_arg = f"{rom_dir_path};{bios_dir}"
 
         if is_mame:
-            # Comando MAME con finestra, risoluzione e rompath per i BIOS
             if self.emulator_mame == "flatpak":
                 cmd = ["flatpak", "run", "org.mamedev.MAME", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
             else:
@@ -635,6 +767,10 @@ class SMSLauncher(QWidget):
         self.list.setItemDelegate(GameDelegate(self.list))
         self.list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Abilita il tracciamento del mouse per mostrare la manina SOLTANTO sugli elementi
+        self.list.viewport().setMouseTracking(True)
+        self.list.viewport().installEventFilter(self)
 
         self.items = {}
         self.list.currentItemChanged.connect(self.show_game)
@@ -694,7 +830,13 @@ class SMSLauncher(QWidget):
         self.folders_list.setIconSize(QSize(DOT, DOT))
         self.folders_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.folders_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Abilita il tracciamento del mouse per la lista cartelle
+        self.folders_list.viewport().setMouseTracking(True)
+        self.folders_list.viewport().installEventFilter(self)
+
         self.folders_list.currentItemChanged.connect(lambda *_: self.fill_list())
+        self.folders_list.itemClicked.connect(self.on_folder_item_clicked)
 
         folders_layout = QVBoxLayout()
         folders_layout.setContentsMargins(10, 10, 10, 10)
@@ -743,7 +885,9 @@ class SMSLauncher(QWidget):
         self.build_item_cache()
         self.update_folders_list()
         self.fill_list()
-        self.list.setFocus()
+
+        # Event filter globale per gamepad
+        QApplication.instance().installEventFilter(self)
 
         self.gamepad = GamepadThread()
         self.gamepad.up_pressed.connect(self.on_pad_up)
@@ -761,17 +905,84 @@ class SMSLauncher(QWidget):
         else:
             QTimer.singleShot(200, self.compute_folder_size_async)
 
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick):
+            self.clear_gamepad_focus()
+
+        # Gestione dinamica del cursore nelle sidebar:
+        # imposta la manina SOLO se sotto il puntatore c'è un elemento reale
+        if event.type() == QEvent.MouseMove and obj in (self.list.viewport(), self.folders_list.viewport()):
+            widget = self.list if obj == self.list.viewport() else self.folders_list
+            if widget.itemAt(event.pos()) is not None:
+                obj.setCursor(Qt.PointingHandCursor)
+            else:
+                obj.setCursor(Qt.ArrowCursor)
+
+        return super().eventFilter(obj, event)
+
+    def set_gamepad_focus(self, target_widget):
+        self.list.setProperty("gamepad", "true" if target_widget == self.list else "false")
+        self.folders_list.setProperty("gamepad", "true" if target_widget == self.folders_list else "false")
+        self.list.style().unpolish(self.list)
+        self.list.style().polish(self.list)
+        self.folders_list.style().unpolish(self.folders_list)
+        self.folders_list.style().polish(self.folders_list)
+
+    def clear_gamepad_focus(self):
+        self.list.setProperty("gamepad", "false")
+        self.folders_list.setProperty("gamepad", "false")
+        self.list.style().unpolish(self.list)
+        self.list.style().polish(self.list)
+        self.folders_list.style().unpolish(self.folders_list)
+        self.folders_list.style().polish(self.folders_list)
+
+    def on_folder_item_clicked(self, item):
+        data = item.data(Qt.UserRole)
+        if not data or not data.startswith("sub_"):
+            return
+        
+        subfolder = data[4:]
+        rect = self.folders_list.visualItemRect(item)
+        click_pos = self.folders_list.viewport().mapFromGlobal(QCursor.pos())
+        
+        if rect.left() <= click_pos.x() <= rect.left() + 32:
+            self.pick_color_for_subfolder(subfolder)
+
+    def pick_color_for_subfolder(self, subfolder):
+        current_hex = get_color_for_brand(subfolder)
+        chosen_color = QColorDialog.getColor(QColor(current_hex), self, f"Scegli colore per {subfolder}")
+        
+        if chosen_color.isValid():
+            new_hex = chosen_color.name()
+            norm_key = _norm_sub(subfolder)
+            
+            SUB_COLOR[subfolder] = new_hex
+            PLATFORM_COLORS[norm_key] = new_hex
+            
+            c_colors = load_json(CUSTOM_COLORS_FILE)
+            if not isinstance(c_colors, dict):
+                c_colors = {}
+            c_colors[norm_key] = new_hex
+            c_colors[subfolder] = new_hex
+            save_custom_colors(c_colors)
+            
+            self.update_folders_list()
+            self.fill_list()
+            curr = self.current_name()
+            if curr:
+                self.show_game()
+
     def set_emulator_choice(self, choice):
         self.selected_emulator = choice
         if choice == "mame":
             self.emu_mame_btn.setChecked(True)
             self.emu_retro_btn.setChecked(False)
-            self.emu_mame_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {BRAND_PALETTE[0]};")
+            self.emu_mame_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {COLOR_ACCENT};")
             self.emu_retro_btn.setStyleSheet("")
         else:
             self.emu_mame_btn.setChecked(False)
             self.emu_retro_btn.setChecked(True)
-            self.emu_retro_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {BRAND_PALETTE[0]};")
+            self.emu_retro_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {COLOR_ACCENT};")
             self.emu_mame_btn.setStyleSheet("")
 
     def update_emulator_selection(self, unique_key):
@@ -788,9 +999,12 @@ class SMSLauncher(QWidget):
         if w == self.folders_list:
             r = self.folders_list.currentRow()
             if r > 0: self.folders_list.setCurrentRow(r - 1)
+            target = self.folders_list
         else:
             r = self.list.currentRow()
             if r > 0: self.list.setCurrentRow(r - 1)
+            target = self.list
+        self.set_gamepad_focus(target)
 
     def on_pad_down(self):
         if not self.isVisible(): return
@@ -798,17 +1012,22 @@ class SMSLauncher(QWidget):
         if w == self.folders_list:
             r = self.folders_list.currentRow()
             if r < self.folders_list.count() - 1: self.folders_list.setCurrentRow(r + 1)
+            target = self.folders_list
         else:
             r = self.list.currentRow()
             if r < self.list.count() - 1: self.list.setCurrentRow(r + 1)
+            target = self.list
+        self.set_gamepad_focus(target)
 
     def on_pad_left(self):
         if not self.isVisible(): return
         self.folders_list.setFocus()
+        self.set_gamepad_focus(self.folders_list)
 
     def on_pad_right(self):
         if not self.isVisible(): return
         self.list.setFocus()
+        self.set_gamepad_focus(self.list)
 
     def tr(self, key):
         lang = self.settings.get("language", "it")
