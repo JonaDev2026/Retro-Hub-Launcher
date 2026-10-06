@@ -17,7 +17,7 @@ from PySide6.QtGui import (QAction, QActionGroup, QColor, QIcon,
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QMessageBox, QSplitter, QStyle, QStyledItemDelegate,
                                QListWidget, QListWidgetItem, QMenuBar,
-                               QPushButton, QVBoxLayout, QWidget, QSizePolicy)
+                               QPushButton, QVBoxLayout, QWidget, QSizePolicy, QMenu)
 
 CONFIG_DIR = os.path.expanduser("~/.config/sms_launcher")
 IMG_DIR = os.path.join(CONFIG_DIR, "img")
@@ -29,24 +29,29 @@ LOCK_FILE = os.path.join(CONFIG_DIR, "worker.lock")
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(_script_dir, "roms"), exist_ok=True)
 os.makedirs(os.path.join(_script_dir, "import"), exist_ok=True)
+os.makedirs(os.path.join(_script_dir, "bios"), exist_ok=True)
 
-DEFAULT_SETTINGS = {"rom_dir": "", "favorites": [], "language": "en"}
+DEFAULT_SETTINGS = {
+    "rom_dir": "", 
+    "favorites": [], 
+    "language": "it",
+    "emulator_retroarch": "flatpak",
+    "emulator_mame": "flatpak"
+}
 
 os.makedirs(IMG_DIR, exist_ok=True)
 os.makedirs(CONFIG_DIR, exist_ok=True)
 
 DOT = 24
-COLOR_NEUTRAL = "#ffffff"  # Bianco pulito per Tutti i giochi e Preferiti
+COLOR_NEUTRAL = "#ffffff"
 COLOR_WORKER_LABEL = "#ffd60a"
 
-# Palette di 12 colori brillanti ottimizzati per il tema scuro
 BRAND_PALETTE = [
     "#0089cf", "#ff375f", "#30d158", "#ff9f0a", "#bf5af2",
     "#5ac8fa", "#ffcc00", "#ff2d55", "#5856d6", "#4cd964",
     "#d1d1d6", "#ff9500"
 ]
 
-# Mappatura fissa per i brand più famosi con i loro colori originali
 FIXED_BRAND_COLORS = {
     "sega": "#0089cf",
     "nintendo": "#ff375f",
@@ -59,13 +64,10 @@ FIXED_BRAND_COLORS = {
 def get_color_for_brand(subfolder):
     if not subfolder:
         return BRAND_PALETTE[0]
-    
     sub_lower = subfolder.lower()
     for brand, color in FIXED_BRAND_COLORS.items():
         if brand in sub_lower:
             return color
-            
-    # Assegnazione deterministica basata su hash per gli altri brand
     h = int(hashlib.md5(subfolder.encode('utf-8')).hexdigest(), 16)
     return BRAND_PALETTE[h % len(BRAND_PALETTE)]
 
@@ -95,6 +97,7 @@ LANGS = {
         "menu_settings": "Settings",
         "menu_rom_folder": "ROM folder...",
         "menu_language": "Language",
+        "menu_backends": "Emulator Backends",
         "games_count": "games",
         "no_images": "No image",
         "loading_bg": "Loading in background...",
@@ -124,6 +127,7 @@ LANGS = {
         "menu_settings": "Impostazioni",
         "menu_rom_folder": "Cartella ROM...",
         "menu_language": "Lingua",
+        "menu_backends": "Motori Emulatori",
         "games_count": "giochi",
         "no_images": "Nessuna immagine",
         "loading_bg": "Caricamento in background...",
@@ -285,7 +289,7 @@ def list_roms_recursive(rom_dir):
     results = []
     if not rom_dir or not os.path.isdir(rom_dir):
         return results
-    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.iso', '.zip')
+    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.iso', '.zip', '.chd')
     
     for root, dirs, files in os.walk(rom_dir):
         for f in files:
@@ -402,32 +406,52 @@ class GamepadThread(QThread):
 
 class EmulatorRunnerThread(QThread):
     finished = Signal()
-    def __init__(self, rom_path, subfolder=""):
+    def __init__(self, rom_path, subfolder="", emulator_choice="retroarch", emulator_retroarch="flatpak", emulator_mame="flatpak", script_dir=""):
         super().__init__()
         self.rom_path = rom_path
         self.subfolder = subfolder
+        self.emulator_choice = emulator_choice
+        self.emulator_retroarch = emulator_retroarch
+        self.emulator_mame = emulator_mame
+        self.script_dir = script_dir
 
     def run(self):
-        cores_base = os.path.expanduser("~/.var/app/org.libretro.RetroArch/config/retroarch/cores/")
-        
         sub_lower = self.subfolder.lower()
-        if "super nintendo" in sub_lower or "snes" in sub_lower:
-            core_name = "snes9x_libretro.so"
-        elif "nes" in sub_lower or "nintendo entertainment system" in sub_lower:
-            core_name = "fceumm_libretro.so"
-        elif "game boy advance" in sub_lower or "gba" in sub_lower:
-            core_name = "vba_next_libretro.so"
-        elif "game boy" in sub_lower:
-            core_name = "gambatte_libretro.so"
-        elif "nintendo 64" in sub_lower or "n64" in sub_lower:
-            core_name = "mupen64plus_next_libretro.so"
-        elif "master system" in sub_lower or "sms" in sub_lower:
-            core_name = "genesis_plus_gx_libretro.so"
+        is_mame = (self.emulator_choice == "mame" or "mame" in sub_lower or "arcade" in sub_lower)
+
+        # Gestione percorso BIOS nella root del progetto
+        bios_dir = os.path.join(self.script_dir, "bios")
+        rom_dir_path = os.path.dirname(self.rom_path)
+        rompath_arg = f"{rom_dir_path};{bios_dir}"
+
+        if is_mame:
+            # Comando MAME con finestra, risoluzione e rompath per i BIOS
+            if self.emulator_mame == "flatpak":
+                cmd = ["flatpak", "run", "org.mamedev.MAME", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
+            else:
+                cmd = ["mame", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
         else:
-            core_name = "genesis_plus_gx_libretro.so"
+            cores_base = os.path.expanduser("~/.var/app/org.libretro.RetroArch/config/retroarch/cores/")
+            if "super nintendo" in sub_lower or "snes" in sub_lower:
+                core_name = "snes9x_libretro.so"
+            elif "nes" in sub_lower or "nintendo entertainment system" in sub_lower:
+                core_name = "fceumm_libretro.so"
+            elif "game boy advance" in sub_lower or "gba" in sub_lower:
+                core_name = "vba_next_libretro.so"
+            elif "game boy" in sub_lower:
+                core_name = "gambatte_libretro.so"
+            elif "nintendo 64" in sub_lower or "n64" in sub_lower:
+                core_name = "mupen64plus_next_libretro.so"
+            else:
+                core_name = "genesis_plus_gx_libretro.so"
             
-        core_path = os.path.join(cores_base, core_name)
-        cmd = ["flatpak", "run", "org.libretro.RetroArch", "-L", core_path, self.rom_path]
+            core_path = os.path.join(cores_base, core_name)
+
+            if self.emulator_retroarch == "flatpak":
+                cmd = ["flatpak", "run", "org.libretro.RetroArch", "-L", core_path, self.rom_path]
+            else:
+                cmd = ["retroarch", "-L", core_path, self.rom_path]
+
         try:
             subprocess.run(cmd)
         except Exception:
@@ -462,6 +486,7 @@ class SMSLauncher(QWidget):
         self.rom_size = 0
         self.all_item_cache = {}
         self.emu_thread = None
+        self.selected_emulator = "retroarch"
 
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
@@ -503,6 +528,18 @@ class SMSLauncher(QWidget):
         self.info.setWordWrap(True)
         self.info.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
+        self.emu_mame_btn = QPushButton("MAME")
+        self.emu_mame_btn.setCheckable(True)
+        self.emu_mame_btn.clicked.connect(lambda: self.set_emulator_choice("mame"))
+
+        self.emu_retro_btn = QPushButton("RetroArch")
+        self.emu_retro_btn.setCheckable(True)
+        self.emu_retro_btn.clicked.connect(lambda: self.set_emulator_choice("retroarch"))
+
+        emulator_layout = QHBoxLayout()
+        emulator_layout.addWidget(self.emu_mame_btn)
+        emulator_layout.addWidget(self.emu_retro_btn)
+
         self.btn = QPushButton(self.tr("play"))
         self.btn.clicked.connect(self.launch)
 
@@ -517,6 +554,7 @@ class SMSLauncher(QWidget):
         center_layout.setContentsMargins(14, 10, 14, 10)
         center_layout.addWidget(self.cover, 3)
         center_layout.addWidget(self.info, 1)
+        center_layout.addLayout(emulator_layout)
         center_layout.addLayout(btn_layout)
 
         center_container = QWidget()
@@ -594,6 +632,27 @@ class SMSLauncher(QWidget):
         else:
             QTimer.singleShot(200, self.compute_folder_size_async)
 
+    def set_emulator_choice(self, choice):
+        self.selected_emulator = choice
+        if choice == "mame":
+            self.emu_mame_btn.setChecked(True)
+            self.emu_retro_btn.setChecked(False)
+            self.emu_mame_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {BRAND_PALETTE[0]};")
+            self.emu_retro_btn.setStyleSheet("")
+        else:
+            self.emu_mame_btn.setChecked(False)
+            self.emu_retro_btn.setChecked(True)
+            self.emu_retro_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {BRAND_PALETTE[0]};")
+            self.emu_mame_btn.setStyleSheet("")
+
+    def update_emulator_selection(self, unique_key):
+        data = self.all_item_cache.get(unique_key, {})
+        subfolder = data.get("subfolder", "").lower()
+        if "mame" in subfolder or "arcade" in subfolder:
+            self.set_emulator_choice("mame")
+        else:
+            self.set_emulator_choice("retroarch")
+
     def on_pad_up(self):
         if not self.isVisible(): return
         w = self.focusWidget()
@@ -623,13 +682,17 @@ class SMSLauncher(QWidget):
         self.list.setFocus()
 
     def tr(self, key):
-        lang = self.settings.get("language", "en")
-        return LANGS.get(lang, LANGS["en"]).get(key, key)
+        lang = self.settings.get("language", "it")
+        return LANGS.get(lang, LANGS["it"]).get(key, key)
 
     def set_language(self, lang_code):
         self.settings["language"] = lang_code
         save_settings(self.settings)
         self.retranslate_ui()
+
+    def set_backend_choice(self, backend_type, value):
+        self.settings[backend_type] = value
+        save_settings(self.settings)
 
     def retranslate_ui(self):
         new_bar = self.build_menu()
@@ -686,10 +749,8 @@ class SMSLauncher(QWidget):
         prog_data = load_json(PROGRESS_FILE)
         if prog_data:
             task = prog_data.get("task", "Elaborazione...")
-            # Sicurezza: tronca i nomi troppo lunghi per evitare che allarghino la finestra
             if len(task) > 35:
                 task = task[:32] + "..."
-                
             current = prog_data.get("current", 0)
             total = prog_data.get("total", 0)
             if task == "Completato" and not is_locked:
@@ -705,19 +766,14 @@ class SMSLauncher(QWidget):
         self.all_item_cache = {}
         for item_tuple in self.roms_data:
             name, path, subfolder, game_dir = item_tuple
-            
             meta_file = os.path.join(game_dir, "metadata.json")
             m = load_json(meta_file)
             if not m:
                 m = self.meta.get(name, {})
-                
             desc = m.get("title", name)
             year_val = m.get("year", "?")
-            
             unique_key = f"{subfolder}_{name}"
-            
             self.meta[unique_key] = m
-            
             self.all_item_cache[unique_key] = {
                 "name": name,
                 "desc": desc,
@@ -738,13 +794,11 @@ class SMSLauncher(QWidget):
         favs = set(self.settings.get("favorites", []))
         fav_count = sum(1 for item in self.roms_data if f"{item[2]}_{item[0]}" in favs or item[0] in favs)
 
-        # "Tutti i giochi" con dot bianco neutro
         it_all = QListWidgetItem(f"{self.tr('all_games')}  ({total_count})")
         it_all.setIcon(make_dot(COLOR_NEUTRAL))
         it_all.setData(Qt.UserRole, "all")
         self.folders_list.addItem(it_all)
 
-        # "Preferiti" con dot bianco neutro
         it_fav = QListWidgetItem(f"{self.tr('favorites')}  ({fav_count})")
         it_fav.setIcon(make_dot(COLOR_NEUTRAL))
         it_fav.setData(Qt.UserRole, "favorites")
@@ -806,10 +860,35 @@ class SMSLauncher(QWidget):
         sett.addAction(a_rom)
         sett.addSeparator()
 
+        backends_menu = sett.addMenu(self.tr("menu_backends"))
+        
+        ra_menu = backends_menu.addMenu("RetroArch")
+        ra_grp = QActionGroup(self)
+        ra_grp.setExclusive(True)
+        cur_ra = self.settings.get("emulator_retroarch", "flatpak")
+        for code, label in (("flatpak", "Flatpak Normale"), ("native", "Pacchetto Nativo")):
+            a = QAction(label, self, checkable=True)
+            a.setChecked(cur_ra == code)
+            a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_retroarch", c))
+            ra_grp.addAction(a)
+            ra_menu.addAction(a)
+
+        mame_menu = backends_menu.addMenu("MAME")
+        mame_grp = QActionGroup(self)
+        mame_grp.setExclusive(True)
+        cur_mame = self.settings.get("emulator_mame", "flatpak")
+        for code, label in (("flatpak", "Flatpak Normale"), ("native", "Pacchetto Nativo")):
+            a = QAction(label, self, checkable=True)
+            a.setChecked(cur_mame == code)
+            a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_mame", c))
+            mame_grp.addAction(a)
+            mame_menu.addAction(a)
+
+        sett.addSeparator()
         lang_menu = sett.addMenu(self.tr("menu_language"))
         lang_grp = QActionGroup(self)
         lang_grp.setExclusive(True)
-        current_lang = self.settings.get("language", "en")
+        current_lang = self.settings.get("language", "it")
         for l_code, l_label in (("en", "English"), ("it", "Italiano")):
             a = QAction(l_label, self, checkable=True)
             a.setChecked(current_lang == l_code)
@@ -954,6 +1033,7 @@ class SMSLauncher(QWidget):
         self.info.setText(txt)
         self.set_cover(unique_key)
         self.update_favorite_button(unique_key)
+        self.update_emulator_selection(unique_key)
 
     def set_cover(self, unique_key):
         data = self.all_item_cache.get(unique_key, {})
@@ -997,7 +1077,11 @@ class SMSLauncher(QWidget):
                 rom_path = data["path"]
                 subfolder = data.get("subfolder", "")
                 self.hide()
-                self.emu_thread = EmulatorRunnerThread(rom_path, subfolder)
+                
+                emu_ra = self.settings.get("emulator_retroarch", "flatpak")
+                emu_mame = self.settings.get("emulator_mame", "flatpak")
+
+                self.emu_thread = EmulatorRunnerThread(rom_path, subfolder, self.selected_emulator, emu_ra, emu_mame, _script_dir)
                 self.emu_thread.finished.connect(self.on_game_finished)
                 self.emu_thread.start()
 
