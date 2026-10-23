@@ -6,12 +6,14 @@ import re
 import zipfile
 import logging
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 CONFIG_DIR = os.path.expanduser("~/.config/launcher")
 PROGRESS_FILE = os.path.join(CONFIG_DIR, "worker_progress.json")
 LOCK_FILE = os.path.join(CONFIG_DIR, "worker.lock")
 LOG_FILE = os.path.join(CONFIG_DIR, "worker.log")
+SUMMARY_FILE = os.path.join(CONFIG_DIR, "worker_summary.json")
 DATABASE_CACHE_DIR = os.path.join(CONFIG_DIR, "database_cache")
 LIBRETRO_TREE_URL = "https://api.github.com/repos/libretro/libretro-database/git/trees/master?recursive=1"
 LIBRETRO_RAW_BASE = "https://raw.githubusercontent.com/libretro/libretro-database/master/"
@@ -19,12 +21,12 @@ LIBRETRO_RAW_BASE = "https://raw.githubusercontent.com/libretro/libretro-databas
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(DATABASE_CACHE_DIR, exist_ok=True)
 
-# Log dettagliato persistente nella stessa directory di configurazione del launcher.
+# Log dettagliato: usa mode="w" per pulire il log a ogni nuovo avvio/sessione
 logger = logging.getLogger("launcher_worker")
 logger.setLevel(logging.DEBUG)
 logger.handlers.clear()
 _log_format = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
-_file_handler = logging.FileHandler(LOG_FILE, mode="a", encoding="utf-8")
+_file_handler = logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8")
 _file_handler.setLevel(logging.DEBUG)
 _file_handler.setFormatter(_log_format)
 logger.addHandler(_file_handler)
@@ -33,7 +35,7 @@ _console_handler.setLevel(logging.INFO)
 _console_handler.setFormatter(_log_format)
 logger.addHandler(_console_handler)
 logger.info("=" * 72)
-logger.info("Worker avviato. Log: %s", LOG_FILE)
+logger.info("Worker avviato. Log pulito e inizializzato: %s", LOG_FILE)
 
 VALID_EXTS = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.z64', '.n64', '.iso', '.rvz', '.chd', '.zip', '.cue', '.img', '.exe', '.bat', '.com')
 
@@ -156,7 +158,6 @@ def _decode_msgpack_value(data, offset=0):
         offset += n
         return value.decode("utf-8", errors="replace") if as_text else value
 
-    # Positive/negative fixint, fixstr, fixarray, fixmap.
     if code <= 0x7f:
         return code, offset
     if code >= 0xe0:
@@ -202,7 +203,6 @@ def _decode_msgpack_value(data, offset=0):
             size = {0xd4:1, 0xd5:2, 0xd6:4, 0xd7:8, 0xd8:16}[code]
         else:
             n = {0xc7:1, 0xc8:2, 0xc9:4}[code]; size = uint(n)
-        # Extension type marker + payload; preserve as bytes so parser can continue.
         if offset >= len(data): raise ValueError("Extension MessagePack troncata")
         offset += 1
         return raw(size, False), offset
@@ -230,15 +230,9 @@ def _decode_msgpack_map(data, offset, count):
 
 def _rdb_records(data):
     """Legge i record di un file RetroArch RDB rispettando l'header C da 16 byte."""
-    # In libretrodb l'header usa char magic_number[sizeof("RARCHDB")]:
-    # sizeof include il terminatore NUL, quindi l'offset inizia al byte 8
-    # e i record iniziano al byte 16, non al byte 15.
     if len(data) < 16 or data[:7] != b"RARCHDB" or data[7] != 0:
         raise ValueError("File non valido: header RARCHDB non valido")
     metadata_offset = int.from_bytes(data[8:16], "big", signed=False)
-    # metadata_offset è l'offset assoluto del blocco metadata e marca la fine
-    # dei record MessagePack. Nei vecchi RDB può essere zero: in quel caso
-    # si scansiona fino al sentinel nil o alla fine del file.
     end = metadata_offset if 16 <= metadata_offset <= len(data) else len(data)
     record_data = data[:end]
     offset = 16
@@ -248,9 +242,6 @@ def _rdb_records(data):
         try:
             record, new_offset = _decode_msgpack_value(record_data, offset)
         except (ValueError, IndexError, OverflowError) as exc:
-            # Alcuni RDB includono dati legacy/metadata che non sono record di gioco.
-            # Non buttare via tutti i record validi già letti solo perché il finale
-            # del blocco non è decodificabile.
             logger.warning(
                 "Fine/record RDB non decodificabile a offset %d di %d: %s; "
                 "mantengo i %d record già letti",
@@ -261,7 +252,7 @@ def _rdb_records(data):
             logger.warning("Offset RDB non avanzato (%d); interrompo la lettura", record_start)
             break
         offset = new_offset
-        if record is None:  # sentinella di fine record
+        if record is None:
             break
         if isinstance(record, dict):
             yield record
@@ -272,7 +263,6 @@ def _rdb_records(data):
 def _normal_title_key(value):
     """Chiave per confrontare titolo database e cartella ROM senza alterare i nomi originali."""
     value = _normal_name(value)
-    # RDB e nomi No-Intro possono differire solo per lingue/revisioni nel nome della cartella.
     value = re.sub(r"\s*\((?:en|fr|de|es|it|nl|ja|zh|ko|pt|ru|sv|da|no|fi|pl|cs|hu|el|tr|ar|he|th|vi|id|ms|uk|hr|sk|ro|bg|ca|eu|gl|fa|hi|bn|ta|te|ur)(?:\s*,\s*(?:en|fr|de|es|it|nl|ja|zh|ko|pt|ru|sv|da|no|fi|pl|cs|hu|el|tr|ar|he|th|vi|id|ms|uk|hr|sk|ro|bg|ca|eu|gl|fa|hi|bn|ta|te|ur))*\)\s*", " ", value, flags=re.IGNORECASE)
     value = re.sub(r"\s*\((?:rev(?:ision)?\s*\d+|v\d+(?:\.\d+)*)\)\s*", " ", value, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", value).strip()
@@ -281,7 +271,6 @@ def _normal_title_key(value):
 def _loose_title_key(value):
     """Chiave permissiva: ignora tag tra parentesi e differenze di punteggiatura."""
     value = _normal_name(value)
-    # Elimina tutti i gruppi tra parentesi: regione, lingue, revisione e varianti.
     previous = None
     while previous != value:
         previous = value
@@ -293,7 +282,6 @@ def _loose_title_key(value):
 
 
 def _candidate_rdb_paths(platform_name):
-    """Percorsi locali RetroArch; se assenti il file viene scaricato dal repository RDB ufficiale."""
     filename = platform_name.strip() + ".rdb"
     roots = [
         os.path.expanduser("~/.config/retroarch/database/rdb"),
@@ -311,7 +299,6 @@ def _candidate_rdb_paths(platform_name):
 
 
 def _load_rdb(platform_name):
-    """Carica esclusivamente l'RDB compilato di Libretro, mai file DAT/releaseyear."""
     cache_name = re.sub(r"[^A-Za-z0-9._ -]", "_", platform_name.strip()) + ".rdb"
     cache_path = os.path.join(DATABASE_CACHE_DIR, cache_name)
     for local_path in _candidate_rdb_paths(platform_name):
@@ -351,7 +338,6 @@ def _load_rdb(platform_name):
 
 
 def _parse_rdb_entries(rdb_data):
-    """Indicizza gli RDB per titolo e raccoglie l'anno e gli altri metadati presenti."""
     entries = {}
     for record in _rdb_records(rdb_data):
         year = record.get("releaseyear", record.get("year"))
@@ -386,7 +372,6 @@ def _parse_rdb_entries(rdb_data):
 
 
 def get_game_year(platform_name, game_folder_name, rom_path, rdb_cache):
-    """Trova l'anno nell'RDB della piattaforma; usa il nome ROM solo se contiene un anno esplicito."""
     platform_key = platform_name.casefold()
     if platform_key not in rdb_cache:
         data = _load_rdb(platform_name)
@@ -411,7 +396,6 @@ def get_game_year(platform_name, game_folder_name, rom_path, rdb_cache):
             logger.info("Anno trovato via RDB (match titolo senza tag) per '%s': %s (chiave=%r)",
                         game_folder_name, year, loose_key.removeprefix("__loose__"))
             return year
-    # Fallback prudente: non indovina l'anno, lo accetta soltanto se scritto nel nome.
     for candidate in candidates:
         match = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", str(candidate))
         if match:
@@ -430,7 +414,6 @@ def load_metadata(path):
 
 
 def write_metadata(path, data):
-    """Scrittura atomica per evitare JSON incompleti se il processo si interrompe."""
     tmp_path = path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -438,9 +421,53 @@ def write_metadata(path, data):
     os.replace(tmp_path, path)
 
 
+_COVER_REGIONS = ["USA", "Europe", "World", "USA, Europe", "Japan", "Asia", "Europe, Australia", "Japan, USA", "USA, Asia", "Korea", "Australia", "Brazil", "Japan, Asia", "Japan, Korea", "USA, Australia"]
+_COVER_LANG = r"\s*\((?:[A-Z][a-z](?:-[A-Za-z]+)?)(?:,[A-Z][a-z](?:-[A-Za-z]+)?)*\)"
+
+def _cover_variants(name):
+    """Genera varianti intelligenti del nome per trovare le copertine, gestendo prefissi e sottotitoli."""
+    out = []
+    def add(n):
+        n = re.sub(r"\s+", " ", re.sub(r'[&*/:`<>?\\|"]', "_", n)).strip()
+        if n and n not in out:
+            out.append(n)
+            
+    m = re.search(_COVER_LANG, name)
+    lang = m.group(0).strip() if m else ""
+    no_lang = re.sub(_COVER_LANG, "", name).strip()
+    plain = re.sub(r"\s*[\(\[][^)\]]*[\)\]]", "", name).strip()
+    has_region = re.search(r"(?:USA|Europe|World|Japan|Asia|Korea|Australia|Brazil)", name)
+    
+    titles = [plain]
+    
+    # 1. Rimuove prefissi comuni (es. Tom Clancy's)
+    lower_plain = plain.lower()
+    if lower_plain.startswith("tom clancy's "):
+        sub_t = plain[13:].strip()
+        titles.append(sub_t)
+        
+    # 2. Gestisce i sottotitoli (es. taglia dopo trattini o due punti per provare il titolo principale)
+    base_titles = list(titles)
+    for t in base_titles:
+        for sep in [" - ", ": ", " – "]:
+            if sep in t:
+                main_part = t.split(sep)[0].strip()
+                if main_part not in titles:
+                    titles.append(main_part)
+                    
+    add(no_lang)
+    for t in titles:
+        if has_region:
+            for r in _COVER_REGIONS:
+                add(f"{t} ({r})")
+                if lang:
+                    add(f"{t} ({r}) {lang}")
+        add(t)
+    return out
+
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Manteniamo il percorso già usato dal worker originale.
     rom_dir = os.path.expanduser("~/Games/roms")
     logger.info("Script directory: %s", script_dir)
     logger.info("Cartella ROM configurata nel worker: %s", rom_dir)
@@ -494,6 +521,18 @@ def main():
             json.dump({"task": "Scansione libreria...", "current": 0, "total": total}, pf, ensure_ascii=False)
 
         rdb_cache = {}
+        
+        # Struttura per il censimento finale
+        summary_data = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "totale_giochi": total if all_games else 0,
+            "con_copertina": 0,
+            "senza_copertina": 0,
+            "con_anno": 0,
+            "senza_anno": 0,
+            "piattaforme": {}
+        }
+
         for i, (libretro_sys, base_name, rom_path, game_dir) in enumerate(all_games):
             with open(PROGRESS_FILE, "w", encoding="utf-8") as pf:
                 json.dump({"task": f"RDB metadata: {base_name}", "current": i + 1, "total": total}, pf, ensure_ascii=False)
@@ -506,8 +545,6 @@ def main():
             logger.debug("Percorsi: game_dir=%s | ROM=%s | metadata=%s | cover=%s", game_dir, rom_path, meta_path, cover_path)
             logger.debug("Metadata preesistenti (%s): %r", existed_before, meta_data)
 
-            # Arricchiamo il JSON esistente: non eliminiamo campi personalizzati
-            # e soprattutto non sovrascriviamo un exec_command già funzionante.
             meta_data.setdefault("title", base_name)
             meta_data.setdefault("platform", libretro_sys)
             meta_data.setdefault("rom_path", rom_path)
@@ -520,8 +557,6 @@ def main():
                 logger.info("Metadata aggiornati: year=%s per '%s'", year, base_name)
             else:
                 logger.warning("Anno non aggiornato per '%s' (%s)", base_name, libretro_sys)
-            # Se il database non ha una corrispondenza esatta, non inventiamo l'anno
-            # e non cancelliamo un valore già presente nel metadata.
 
             try:
                 write_metadata(meta_path, meta_data)
@@ -529,7 +564,6 @@ def main():
             except Exception:
                 logger.exception("Errore durante la scrittura di metadata.json: %s", meta_path)
 
-            # Copertine: prova titolo ufficiale, nome ROM e cartella, su più categorie.
             if os.path.exists(cover_path):
                 logger.debug("Copertina già presente, non modificata: %s", cover_path)
             else:
@@ -538,11 +572,16 @@ def main():
                 rom_no_ext = os.path.splitext(os.path.basename(rom_path))[0]
                 names = list(dict.fromkeys([official_title, rom_no_ext, base_name]))
                 names = [re.sub(r"\s+", " ", n.replace(":", "_").replace("/", "_").replace("\\", "_")).strip() for n in names]
+                names += [v for v in _cover_variants(base_name) if v not in names]
+                
+                # Categorie ufficiali di Libretro Thumbnails
                 categories = ("Named_Boxarts", "Named_Titles", "Named_Snaps", "Named_Logos")
                 downloaded = False
+                
                 for name in names:
                     if downloaded:
                         break
+                    # Ora TUTTE le varianti di nome testano TUTTE le categorie
                     for category in categories:
                         direct_url = (
                             f"https://raw.githubusercontent.com/libretro-thumbnails/"
@@ -561,9 +600,45 @@ def main():
                                     break
                                 logger.debug("Risposta copertina non valida: %s", direct_url)
                         except Exception as exc:
-                            logger.debug("Tentativo copertina fallito (%s): %s", category, exc)
+                            logger.debug("Tentativo copertina fallito (%s/%s): %s", category, name, exc)
                 if not downloaded:
                     logger.warning("Nessuna copertina trovata | gioco=%s | piattaforma=%s", base_name, libretro_sys)
+
+            # Raccogliamo i dati per il report di censimento finale
+            has_cover = os.path.exists(cover_path)
+            has_year = bool(meta_data.get("year"))
+
+            if has_cover:
+                summary_data["con_copertina"] += 1
+            else:
+                summary_data["senza_copertina"] += 1
+
+            if has_year:
+                summary_data["con_anno"] += 1
+            else:
+                summary_data["senza_anno"] += 1
+
+            # Raggruppamento per piattaforma nel summary
+            sys_stat = summary_data["piattaforme"].setdefault(libretro_sys, {
+                "totale": 0,
+                "con_copertina": 0,
+                "senza_copertina": 0,
+                "giochi_senza_copertina": []
+            })
+            sys_stat["totale"] += 1
+            if has_cover:
+                sys_stat["con_copertina"] += 1
+            else:
+                sys_stat["senza_copertina"] += 1
+                sys_stat["giochi_senza_copertina"].append(base_name)
+
+        # Scrittura del file di riepilogo finale (censimento)
+        try:
+            with open(SUMMARY_FILE, "w", encoding="utf-8") as sf:
+                json.dump(summary_data, sf, indent=2, ensure_ascii=False)
+            logger.info("Censimento libreria salvato in: %s", SUMMARY_FILE)
+        except Exception:
+            logger.exception("Impossibile scrivere il file di riepilogo summary")
 
         with open(PROGRESS_FILE, "w", encoding="utf-8") as pf:
             json.dump({"task": "Completato", "total": total, "current": total}, pf, ensure_ascii=False)
@@ -596,7 +671,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
-        # L'eccezione completa è già stata scritta nel log; resta visibile anche in console.
         traceback.print_exc()
         raise
-
