@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=Retro Hub Launcher
-Comment=Hub multiconsole per RetroArch
-Exec=python3 /home/jonathan/launcher_games/launcher.py
-Path=/home/jonathan/launcher_games/
+Comment=Hub multiconsole
+Exec=python3 /home/jonathan/Games/launcher.py
+Path=/home/jonathan/Games/
 Icon=applications-games
 Terminal=false
 Categories=Game;Emulator;
