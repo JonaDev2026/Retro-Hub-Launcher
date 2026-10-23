@@ -8,9 +8,9 @@ import struct
 import subprocess
 import sys
 import time
-import pygame
+import zipfile
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, QRect, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor, QIcon,
                            QPainter, QPalette, QPen, QPixmap, QKeySequence)
 from PySide6.QtWidgets import (QApplication, QColorDialog, QFileDialog, QHBoxLayout, QLabel,
@@ -18,9 +18,8 @@ from PySide6.QtWidgets import (QApplication, QColorDialog, QFileDialog, QHBoxLay
                                QListWidget, QListWidgetItem, QMenuBar,
                                QPushButton, QVBoxLayout, QWidget, QSizePolicy, QMenu)
 
-CONFIG_DIR = os.path.expanduser("~/.config/sms_launcher")
+CONFIG_DIR = os.path.expanduser("~/.config/launcher")
 IMG_DIR = os.path.join(CONFIG_DIR, "img")
-META_FILE = os.path.join(CONFIG_DIR, "meta.json")
 PROGRESS_FILE = os.path.join(CONFIG_DIR, "worker_progress.json")
 SETTINGS_FILE = os.path.join(CONFIG_DIR, "settings.json")
 CUSTOM_COLORS_FILE = os.path.join(CONFIG_DIR, "custom_colors.json")
@@ -28,15 +27,12 @@ LOCK_FILE = os.path.join(CONFIG_DIR, "worker.lock")
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(_script_dir, "roms"), exist_ok=True)
-os.makedirs(os.path.join(_script_dir, "import"), exist_ok=True)
 os.makedirs(os.path.join(_script_dir, "bios"), exist_ok=True)
 
 DEFAULT_SETTINGS = {
-    "rom_dir": "", 
+    "rom_dir": os.path.join(_script_dir, "roms"), 
     "favorites": [], 
-    "language": "it",
-    "emulator_retroarch": "flatpak",
-    "emulator_mame": "flatpak"
+    "language": "it"
 }
 
 os.makedirs(IMG_DIR, exist_ok=True)
@@ -48,265 +44,45 @@ COLOR_WORKER_LABEL = "#ffd60a"
 COLOR_ACCENT = "#0089cf"
 
 SHORT_PLATFORM_NAMES = {
-    "amstrad - cpc": "Amstrad CPC",
-    "amstrad - gx4000": "Amstrad GX4000",
-    "apple - ii": "Apple II",
-    "arduboy inc - arduboy": "Arduboy",
     "atari - 2600": "Atari 2600",
-    "atari - 5200": "Atari 5200",
-    "atari - 7800": "Atari 7800",
-    "atari - 8-bit family": "Atari 8-bit",
-    "atari - jaguar": "Atari Jaguar",
-    "atari - lynx": "Atari Lynx",
-    "atomiswave": "Atomiswave",
-    "bandai - wonderswan": "WonderSwan",
-    "bandai - wonderswan color": "WonderSwan Color",
-    "cannonball": "Cannonball",
-    "casio - loopy": "Casio Loopy",
-    "casio - pv-1000": "Casio PV-1000",
-    "cave story": "Cave Story",
-    "chailove": "ChaiLove",
-    "chip-8": "CHIP-8",
-    "coleco - colecovision": "ColecoVision",
     "commodore - 64": "Commodore 64",
-    "commodore - amiga": "Amiga",
-    "commodore - cdtv": "Commodore CDTV",
-    "commodore - pet": "Commodore PET",
-    "commodore - plus-4": "Commodore Plus-4",
-    "dice": "DICE",
-    "dinothawr": "Dinothawr",
-    "doom": "DOOM",
     "dos": "DOS",
-    "elektor - tv games computer": "Elektor TV Games",
-    "emerson - arcadia 2001": "Arcadia 2001",
-    "enterprise - 128": "Enterprise 128",
-    "epoch - cassette vision": "Cassette Vision",
-    "epoch - super cassette vision": "Super Cassette Vision",
-    "fairchild - channel f": "Channel F",
-    "fbneo - arcade games": "FBNeo Arcade",
-    "flashback": "Flashback",
-    "funtech - super acan": "Super Acan",
-    "gamepark - gp32": "GP32",
-    "gce - vectrex": "Vectrex",
-    "handheld electronic game": "Handheld Electronic",
-    "hartung - game master": "Game Master",
-    "infocom - z-machine": "Z-Machine",
-    "interton - vc 4000": "VC 4000",
-    "jump 'n bump": "Jump 'n Bump",
-    "leapfrog - leapster learning game system": "Leapster",
-    "lowres nx": "LowRes NX",
-    "lutro": "Lutro",
-    "magnavox - odyssey2": "Odyssey2",
     "mame": "Arcade (MAME)",
-    "mame 2000": "MAME 2000",
-    "mame 2003": "MAME 2003",
-    "mame 2010": "MAME 2010",
-    "mame 2016": "MAME 2016",
-    "mattel - intellivision": "Intellivision",
-    "microsoft - msx": "MSX",
-    "microsoft - msx2": "MSX2",
-    "microw8": "MicroW8",
-    "mobile - j2me": "Mobile J2ME",
-    "nec - pc-8001 - pc-8801": "NEC PC-8801",
-    "nec - pc-88": "NEC PC-88",
-    "nec - pc-98": "NEC PC-98",
-    "nec - pc engine cd - turbografx-cd": "TurboGrafx-CD",
-    "nec - pc engine supergrafx": "SuperGrafx",
-    "nec - pc engine - turbografx 16": "PC Engine",
-    "nec - pc-fx": "PC-FX",
-    "nintendo - family computer disk system": "Famicom Disk System",
     "nintendo - game boy": "Game Boy",
     "nintendo - game boy advance": "Game Boy Advance",
     "nintendo - game boy color": "Game Boy Color",
     "nintendo - gamecube": "GameCube",
-    "nintendo - nintendo 3ds": "Nintendo 3DS",
     "nintendo - nintendo 64": "Nintendo 64",
-    "nintendo - nintendo 64dd": "Nintendo 64DD",
-    "nintendo - nintendo ds": "Nintendo DS",
-    "nintendo - nintendo entertainment system": "Nintendo",
-    "nintendo - pokemon mini": "Pokemon Mini",
-    "nintendo - satellaview": "Satellaview",
-    "nintendo - sufami turbo": "Sufami Turbo",
-    "nintendo - super nintendo entertainment system": "Super Nintendo",
-    "nintendo - virtual boy": "Virtual Boy",
+    "nintendo - nintendo entertainment system": "Nintendo (NES)",
+    "nintendo - super nintendo entertainment system": "Super Nintendo (SNES)",
     "nintendo - wii": "Nintendo Wii",
-    "nintendo - wii (digital)": "Nintendo Wii (Digital)",
-    "philips - cd-i": "Philips CD-i",
-    "philips - videopac+": "Videopac+",
-    "pico-8": "PICO-8",
-    "quake": "Quake",
-    "quake ii": "Quake II",
-    "rca - studio ii": "RCA Studio II",
-    "rick dangerous": "Rick Dangerous",
-    "rpg maker": "RPG Maker",
-    "scummvm": "ScummVM",
-    "sega - dreamcast": "Sega Dreamcast",
-    "sega - game gear": "Game Gear",
     "sega - master system - mark iii": "Sega Master System",
-    "sega - mega-cd - sega cd": "Sega CD",
     "sega - mega drive - genesis": "Sega Mega Drive",
-    "sega - naomi": "Sega Naomi",
-    "sega - naomi 2": "Sega Naomi 2",
-    "sega - pico": "Sega PICO",
-    "sega - saturn": "Sega Saturn",
-    "sega - sg-1000": "Sega SG-1000",
-    "sharp - x1": "Sharp X1",
-    "sharp - x68000": "Sharp X68000",
-    "sinclair - zx 81": "Sinclair ZX81",
-    "sinclair - zx spectrum": "ZX Spectrum",
-    "sinclair - zx spectrum +3": "ZX Spectrum +3",
-    "snk - neo geo": "Neo Geo",
-    "snk - neo geo cd": "Neo Geo CD",
-    "snk - neo geo pocket": "Neo Geo Pocket",
     "sony - playstation": "PlayStation",
+    "sony - playstation 1": "PlayStation",
     "sony - playstation 2": "PlayStation 2",
-    "sony - playstation 3": "PlayStation 3",
-    "sony - playstation 3 (psn)": "PlayStation 3 (PSN)",
-    "sony - playstation portable": "PlayStation Portable",
-    "sony - playstation portable (psn)": "PlayStation Portable (PSN)",
-    "sony - playstation vita": "PlayStation Vita",
-    "spectravideo - svi-318 - svi-328": "Spectravideo SVI",
-    "the 3do company - 3do": "3DO",
-    "thomson - moto": "Thomson MOTO",
-    "tic-80": "TIC-80",
-    "videoton - tv-computer": "Videoton TV-Computer",
-    "vircon32": "Vircon32",
-    "vtech - creativision": "CreatiVision",
-    "vtech - v.smile": "V.Smile",
-    "wasm-4": "WASM-4",
-    "watara - supervision": "Supervision",
-    "wolfenstein 3d": "Wolfenstein 3D"
+    "xbox": "Xbox",
+    "microsoft - xbox": "Xbox"
 }
 
 PLATFORM_COLORS = {
-    "amstrad - cpc": "#5856d6",
-    "amstrad - gx4000": "#5856d6",
-    "apple - ii": "#d1d1d6",
-    "arduboy inc - arduboy": "#ff9500",
-    "atari - 2600": "#ff9f0a",
-    "atari - 5200": "#ff9f0a",
-    "atari - 7800": "#ff9f0a",
-    "atari - 8-bit family": "#ff9f0a",
-    "atari - jaguar": "#ff9f0a",
-    "atari - lynx": "#ff9f0a",
-    "atomiswave": "#ffcc00",
-    "bandai - wonderswan": "#ff375f",
-    "bandai - wonderswan color": "#ff375f",
-    "cannonball": "#d1d1d6",
-    "casio - loopy": "#bf5af2",
-    "casio - pv-1000": "#bf5af2",
-    "cave story": "#30d158",
-    "chailove": "#30d158",
-    "chip-8": "#d1d1d6",
-    "coleco - colecovision": "#ff9500",
-    "commodore - 64": "#4cd964",
-    "commodore - amiga": "#4cd964",
-    "commodore - cdtv": "#4cd964",
-    "commodore - pet": "#4cd964",
-    "commodore - plus-4": "#4cd964",
-    "dice": "#d1d1d6",
-    "dinothawr": "#30d158",
-    "doom": "#ff2d55",
-    "dos": "#5856d6",
-    "elektor - tv games computer": "#d1d1d6",
-    "emerson - arcadia 2001": "#ff9500",
-    "enterprise - 128": "#5856d6",
-    "epoch - cassette vision": "#ffcc00",
-    "epoch - super cassette vision": "#ffcc00",
-    "fairchild - channel f": "#d1d1d6",
-    "fbneo - arcade games": "#ffcc00",
-    "flashback": "#30d158",
-    "funtech - super acan": "#ff375f",
-    "gamepark - gp32": "#5ac8fa",
-    "gce - vectrex": "#ff9f0a",
-    "handheld electronic game": "#d1d1d6",
-    "hartung - game master": "#ff9500",
-    "infocom - z-machine": "#5856d6",
-    "interton - vc 4000": "#d1d1d6",
-    "jump 'n bump": "#30d158",
-    "leapfrog - leapster learning game system": "#ff375f",
-    "lowres nx": "#30d158",
-    "lutro": "#30d158",
-    "magnavox - odyssey2": "#ff9500",
+    "dos": "#9c6b3f",
     "mame": "#dc8add",
-    "mame 2000": "#dc8add",
-    "mame 2003": "#dc8add",
-    "mame 2010": "#dc8add",
-    "mame 2016": "#dc8add",
-    "mattel - intellivision": "#ff9500",
-    "microsoft - msx": "#5856d6",
-    "microsoft - msx2": "#5856d6",
-    "microw8": "#30d158",
-    "mobile - j2me": "#5ac8fa",
-    "nec - pc-8001 - pc-8801": "#bf5af2",
-    "nec - pc-88": "#bf5af2",
-    "nec - pc-98": "#bf5af2",
-    "nec - pc engine cd - turbografx-cd": "#bf5af2",
-    "nec - pc engine supergrafx": "#bf5af2",
-    "nec - pc engine - turbografx 16": "#bf5af2",
-    "nec - pc-fx": "#bf5af2",
-    "nintendo - family computer disk system": "#ff375f",
-    "nintendo - game boy": "#ff375f",
-    "nintendo - game boy advance": "#ff375f",
-    "nintendo - game boy color": "#ff375f",
+    "nintendo - game boy": "#8b956d",
+    "nintendo - game boy advance": "#582092",
+    "nintendo - game boy color": "#c8206d",
     "nintendo - gamecube": "#ff375f",
-    "nintendo - nintendo 3ds": "#ff375f",
     "nintendo - nintendo 64": "#2ec27e",
-    "nintendo - nintendo 64dd": "#ff375f",
-    "nintendo - nintendo ds": "#ff375f",
-    "nintendo - nintendo entertainment system": "#e5a50a",
-    "nintendo - pokemon mini": "#ff375f",
-    "nintendo - satellaview": "#ff375f",
-    "nintendo - sufami turbo": "#ff375f",
-    "nintendo - super nintendo entertainment system": "#ff375f",
-    "nintendo - virtual boy": "#ff375f",
-    "nintendo - wii": "#ff375f",
-    "nintendo - wii (digital)": "#ff375f",
-    "philips - cd-i": "#5856d6",
-    "philips - videopac+": "#5856d6",
-    "pico-8": "#30d158",
-    "quake": "#ff2d55",
-    "quake ii": "#ff2d55",
-    "rca - studio ii": "#d1d1d6",
-    "rick dangerous": "#30d158",
-    "rpg maker": "#30d158",
-    "scummvm": "#5856d6",
-    "sega - dreamcast": "#0089cf",
-    "sega - game gear": "#0089cf",
-    "sega - master system - mark iii": "#0089cf",
-    "sega - mega-cd - sega cd": "#0089cf",
-    "sega - mega drive - genesis": "#0089cf",
-    "sega - naomi": "#0089cf",
-    "sega - naomi 2": "#0089cf",
-    "sega - pico": "#0089cf",
-    "sega - saturn": "#0089cf",
-    "sega - sg-1000": "#0089cf",
-    "sharp - x1": "#d1d1d6",
-    "sharp - x68000": "#d1d1d6",
-    "sinclair - zx 81": "#d1d1d6",
-    "sinclair - zx spectrum": "#d1d1d6",
-    "sinclair - zx spectrum +3": "#d1d1d6",
-    "snk - neo geo": "#ffcc00",
-    "snk - neo geo cd": "#ffcc00",
-    "snk - neo geo pocket": "#ffcc00",
-    "sony - playstation": "#d1d1d6",
-    "sony - playstation 2": "#d1d1d6",
-    "sony - playstation 3": "#d1d1d6",
-    "sony - playstation 3 (psn)": "#d1d1d6",
-    "sony - playstation portable": "#d1d1d6",
-    "sony - playstation portable (psn)": "#d1d1d6",
-    "sony - playstation vita": "#d1d1d6",
-    "spectravideo - svi-318 - svi-328": "#d1d1d6",
-    "the 3do company - 3do": "#ff9500",
-    "thomson - moto": "#5856d6",
-    "tic-80": "#30d158",
-    "videoton - tv-computer": "#d1d1d6",
-    "vircon32": "#30d158",
-    "vtech - creativision": "#d1d1d6",
-    "vtech - v.smile": "#d1d1d6",
-    "wasm-4": "#30d158",
-    "watara - supervision": "#ff9500",
-    "wolfenstein 3d": "#ff2d55"
+    "nintendo - nintendo entertainment system": "#ff375f",
+    "nintendo - super nintendo entertainment system": "#e5a50a",
+    "nintendo - wii": "#94dee3",
+    "sega - master system - mark iii": "#229ED9",
+    "sega - mega drive - genesis": "#229ED9",
+    "sony - playstation": "#a9b2bd",
+    "sony - playstation 1": "#a9b2bd",
+    "sony - playstation 2": "#1a75ff",
+    "xbox": "#9bf00b",
+    "microsoft - xbox": "#9bf00b"
 }
 
 SUB_COLOR = {}
@@ -346,87 +122,19 @@ def get_color_for_brand(subfolder):
 
 AUTHOR, YEAR = "Jonathan Sanfilippo", "2026"
 STATO = "#2c2c35"
-# FONDO, PANNELLO, CERCA = "#121212", "#131215", "#252428"
 FONDO, PANNELLO, CERCA = "#17171b", "#17171b", "#252428"
 TASTO, SCELTO, TESTO, GRIGIO = "#2c2c35", "#424250", "#e0e0e0", "#9e9e9e"
 IN_ONDA = "#3b2f4f"
 
-LANGS = {
-    "en": {
-        "search_placeholder": "Search game...",
-        "play": "Play",
-        "favorite": "Favorite",
-        "library": "Platforms",
-        "all_games": "All games",
-        "favorites": "Favorites",
-        "worker_inactive": "Background worker inactive",
-        "worker_starting": "starting...",
-        "worker_idle": "inactive or completed",
-        "ready": "Ready",
-        "no_rom_folder": "No ROM folder set",
-        "select_rom_start": "Select a ROM folder to start.",
-        "menu_file": "File",
-        "menu_refresh": "Refresh ROMs",
-        "menu_quit": "Quit",
-        "menu_settings": "Settings",
-        "menu_rom_folder": "ROM folder...",
-        "menu_language": "Language",
-        "menu_backends": "Emulator Backends",
-        "backend_flatpak": "Standard Flatpak",
-        "backend_native": "Native Package",
-        "games_count": "games",
-        "no_images": "No image",
-        "loading_bg": "Loading in background...",
-        "loading": "Loading...",
-        "ready_to_play": "Ready to play...",
-        "year": "Year",
-        "platform": "Platform",
-        "region": "Region",
-        "revision": "Revision"
-    },
-    "it": {
-        "search_placeholder": "Cerca gioco...",
-        "play": "Avvia",
-        "favorite": "Preferito",
-        "library": "Piattaforme",
-        "all_games": "Tutti i giochi",
-        "favorites": "Preferiti",
-        "worker_inactive": "Worker inattivo",
-        "worker_starting": "avvio in corso...",
-        "worker_idle": "inattivo o completato",
-        "ready": "Pronto",
-        "no_rom_folder": "Nessuna cartella ROM impostata",
-        "select_rom_start": "Seleziona una cartella ROM per iniziare.",
-        "menu_file": "File",
-        "menu_refresh": "Aggiorna ROM",
-        "menu_quit": "Esci",
-        "menu_settings": "Impostazioni",
-        "menu_rom_folder": "Cartella ROM...",
-        "menu_language": "Lingua",
-        "menu_backends": "Motori Emulatori",
-        "backend_flatpak": "Flatpak Normale",
-        "backend_native": "Pacchetto Nativo",
-        "games_count": "giochi",
-        "no_images": "Nessuna immagine",
-        "loading_bg": "Caricamento in background...",
-        "loading": "Caricamento...",
-        "ready_to_play": "Pronto per giocare...",
-        "year": "Anno",
-        "platform": "Piattaforma",
-        "region": "Regione",
-        "revision": "Revisione"
-    }
-}
-
-def make_dot(color):
-    pm = QPixmap(DOT, DOT)
+def make_dot(color, size=16):
+    pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
     p.setPen(Qt.NoPen)
     p.setBrush(QColor(color))
-    r = DOT * 0.22
-    p.drawEllipse(DOT / 2.0 - r, DOT / 2.0 - r, 2 * r, 2 * r)
+    r = size * 0.35
+    p.drawEllipse(size / 2.0 - r, size / 2.0 - r, 2 * r, 2 * r)
     p.end()
     return QIcon(pm)
 
@@ -451,8 +159,8 @@ QPushButton {{ background: {TASTO}; color: {TESTO}; border: none; border-radius:
               padding: 8px; }}
 QPushButton:hover {{ background: {SCELTO}; }}
 QSplitter::handle {{ background: {SCELTO}; }}
-QWidget#status {{ background: {STATO}; }}
-QWidget#status QLabel {{ color: #ffffff; }}
+QWidget#status {{ background: {STATO}; min-height: 28px; max-height: 28px; }}
+QWidget#status QLabel {{ color: #ffffff; line-height: 28px; }}
 """
 
 def lens_icon():
@@ -480,44 +188,72 @@ class GameDelegate(QStyledItemDelegate):
         selected = bool(option.state & QStyle.State_Selected)
         if selected:
             painter.fillRect(r, QColor(CERCA))
+
+        x = r.left() + 10
+        w = r.width() - 20
+
+        # Titolo del gioco (in alto)
+        name = painter.fontMetrics().elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, w)
+        painter.setPen(QColor("#ffffff" if selected else TESTO))
+        painter.drawText(QRect(x, r.top() + 5, w, 16), Qt.AlignLeft | Qt.AlignVCenter, name)
+
+        # Configurazione font per la seconda riga (Anno + Dot + Piattaforma)
+        f = painter.font()
+        if f.pointSizeF() > 0:
+            f.setPointSizeF(max(f.pointSizeF() - 1.5, 8))
+            painter.setFont(f)
+
+        fm = painter.fontMetrics()
+        cur_x = x
+
+        year_str = index.data(Qt.UserRole + 1) or ""
+        dot_color = index.data(Qt.UserRole + 2) or COLOR_ACCENT
+        subfolder_str = index.data(Qt.UserRole + 5) or ""
+
+        # 1. Anno in BIANCO
+        if year_str and year_str != "?":
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(QRect(cur_x, r.top() + 24, w, 16), Qt.AlignLeft | Qt.AlignVCenter, year_str)
+            cur_x += fm.horizontalAdvance(year_str) + 6
+
+        # 2. Pallino colorato della piattaforma
+        if subfolder_str:
+            dot_size = 8
+            dot_y = r.top() + 24 + (16 - dot_size) // 2
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(dot_color))
+            painter.drawEllipse(cur_x, dot_y, dot_size, dot_size)
+            cur_x += dot_size + 6
+
+            # 3. Nome piattaforma col suo colore
+            painter.setPen(QColor(dot_color))
+            painter.drawText(QRect(cur_x, r.top() + 24, w, 16), Qt.AlignLeft | Qt.AlignVCenter, subfolder_str)
+
+        painter.restore()
+
+class FolderDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        return QSize(option.rect.width(), 34)
+
+    def paint(self, painter, option, index):
+        painter.save()
+        r = option.rect
+        selected = bool(option.state & QStyle.State_Selected)
+        if selected:
+            painter.fillRect(r, QColor(CERCA))
             
         icon = index.data(Qt.DecorationRole)
         if isinstance(icon, QIcon):
             icon.paint(painter, QRect(r.left() + 4, r.top() + (r.height() - DOT) // 2, DOT, DOT))
+            
         x = r.left() + DOT + 10
         w = r.width() - DOT - 18
         
         name = painter.fontMetrics().elidedText(index.data(Qt.DisplayRole) or "", Qt.ElideRight, w)
         painter.setPen(QColor("#ffffff" if selected else TESTO))
-        painter.drawText(QRect(x, r.top() + 7, w, 16), Qt.AlignLeft | Qt.AlignVCenter, name)
+        painter.drawText(QRect(x, r.top(), w, r.height()), Qt.AlignLeft | Qt.AlignVCenter, name)
         
-        f = painter.font()
-        if f.pointSizeF() > 0:
-            f.setPointSizeF(max(f.pointSizeF() - 1.5, 7))
-            painter.setFont(f)
-            
-        fm = painter.fontMetrics()
-        cur_x = x
-
-        year_str = index.data(Qt.UserRole + 1) or ""
-        subfolder_str = index.data(Qt.UserRole + 5) or ""
-        dot_color = index.data(Qt.UserRole + 2) or COLOR_ACCENT
-
-        if year_str:
-            painter.setPen(QColor(GRIGIO))
-            painter.drawText(QRect(cur_x, r.top() + 25, w, 15), Qt.AlignLeft | Qt.AlignVCenter, year_str)
-            cur_x += fm.horizontalAdvance(year_str) + 4
-
-        if year_str and subfolder_str:
-            painter.setPen(QColor(GRIGIO))
-            sep = " \u00b7 "
-            painter.drawText(QRect(cur_x, r.top() + 25, w, 15), Qt.AlignLeft | Qt.AlignVCenter, sep)
-            cur_x += fm.horizontalAdvance(sep) + 2
-
-        if subfolder_str:
-            painter.setPen(QColor(dot_color))
-            painter.drawText(QRect(cur_x, r.top() + 25, w, 15), Qt.AlignLeft | Qt.AlignVCenter, subfolder_str)
-
         painter.restore()
 
 class SearchBox(QLineEdit):
@@ -550,44 +286,74 @@ def clean_platform_display(sub):
         return SHORT_PLATFORM_NAMES[key]
     return sub.replace("_-_", " ").replace("-", " ").replace("_", " ")
 
+def clean_game_title(raw_title):
+    if not raw_title:
+        return ""
+    # Rimuove codici parentesi come (Europe), (En,Fr,De), (Rev 1), [!], (v1.0), ecc.
+    t = re.sub(r'[\(\[\<].*?[\)\]\>]', '', raw_title)
+    return t.strip() or raw_title
+
 def list_roms_recursive(rom_dir):
     results = []
     if not rom_dir or not os.path.isdir(rom_dir):
         return results
-    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.iso', '.zip', '.chd')
-    
-    for root, dirs, files in os.walk(rom_dir):
-        for f in files:
-            if f.lower().endswith(valid_exts):
-                base_name = os.path.splitext(f)[0]
-                full_path = os.path.join(root, f)
-                rel_path = os.path.relpath(root, rom_dir)
-                parts = rel_path.split(os.sep)
-                raw_sub = parts[0] if len(parts) > 0 and parts[0] != "." else ""
-                subfolder = clean_platform_display(raw_sub)
-                _c = PLATFORM_COLORS.get(_norm_sub(raw_sub))
-                if _c and subfolder and subfolder not in SUB_COLOR:
-                    SUB_COLOR[subfolder] = _c
-                results.append((base_name, full_path, subfolder, root))
+    valid_exts = ('.sms', '.bin', '.sfc', '.smc', '.md', '.gen', '.nes', '.gb', '.gba', '.z64', '.n64', '.iso', '.rvz', '.chd', '.zip', '.cue', '.img')
+
+    for libretro_sys in os.listdir(rom_dir):
+        sys_path = os.path.join(rom_dir, libretro_sys)
+        if not os.path.isdir(sys_path):
+            continue
+
+        target_scan_path = sys_path
+        if ("playstation" in libretro_sys.lower() or "dos" in libretro_sys.lower()) and os.path.isdir(os.path.join(sys_path, "roms")):
+            target_scan_path = os.path.join(sys_path, "roms")
+
+        for base_name in os.listdir(target_scan_path):
+            game_dir = os.path.join(target_scan_path, base_name)
+            if not os.path.isdir(game_dir):
+                if base_name.lower().endswith(valid_exts):
+                    f = base_name
+                    base_game_name = os.path.splitext(f)[0]
+                    subfolder = clean_platform_display(libretro_sys)
+                    _c = PLATFORM_COLORS.get(_norm_sub(libretro_sys))
+                    if _c and subfolder and subfolder not in SUB_COLOR:
+                        SUB_COLOR[subfolder] = _c
+                    results.append((base_game_name, os.path.join(target_scan_path, f), subfolder, target_scan_path))
+                continue
+
+            files_in_game = os.listdir(game_dir)
+            valid_files = [f for f in files_in_game if f.lower().endswith(valid_exts)]
+            if not valid_files:
+                continue
+
+            cue_files = [f for f in valid_files if f.lower().endswith('.cue')]
+            if cue_files:
+                chosen_file = cue_files[0]
+            else:
+                chosen_file = valid_files[0]
+
+            rom_path = os.path.join(game_dir, chosen_file)
+            subfolder = clean_platform_display(libretro_sys)
+            _c = PLATFORM_COLORS.get(_norm_sub(libretro_sys))
+            if _c and subfolder and subfolder not in SUB_COLOR:
+                SUB_COLOR[subfolder] = _c
+
+            results.append((base_name, rom_path, subfolder, game_dir))
+
     return sorted(results, key=lambda x: x[0].lower())
 
-def folder_size(path):
-    total = 0
-    for root, _d, files in os.walk(path):
-        for f in files:
-            try:
-                total += os.path.getsize(os.path.join(root, f))
-            except OSError:
-                pass
-    return total
+class EmulatorRunnerThread(QThread):
+    finished = Signal()
+    def __init__(self, exec_command):
+        super().__init__()
+        self.exec_command = exec_command
 
-def fmt_size(n):
-    n = float(n)
-    for u in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return "%.1f %s" % (n, u) if u != "B" else "%d B" % n
-        n /= 1024
-    return "%.1f TB" % n
+    def run(self):
+        try:
+            subprocess.run(self.exec_command)
+        except Exception as e:
+            print(f"Errore avvio emulatore: {e}")
+        self.finished.emit()
 
 class GamepadThread(QThread):
     up_pressed = Signal()
@@ -672,100 +438,6 @@ class GamepadThread(QThread):
         elif direction == "LEFT": self.left_pressed.emit()
         elif direction == "RIGHT": self.right_pressed.emit()
 
-class EmulatorRunnerThread(QThread):
-    finished = Signal()
-    def __init__(self, rom_path, subfolder="", emulator_choice="retroarch", emulator_retroarch="flatpak", emulator_mame="flatpak", script_dir=""):
-        super().__init__()
-        self.rom_path = rom_path
-        self.subfolder = subfolder
-        self.emulator_choice = emulator_choice
-        self.emulator_retroarch = emulator_retroarch
-        self.emulator_mame = emulator_mame
-        self.script_dir = script_dir
-
-    def run(self):
-        sub_lower = self.subfolder.lower()
-        is_mame = (self.emulator_choice == "mame" or "mame" in sub_lower or "arcade" in sub_lower)
-
-        bios_dir = os.path.join(self.script_dir, "bios")
-        rom_dir_path = os.path.dirname(self.rom_path)
-        rompath_arg = f"{rom_dir_path};{bios_dir}"
-
-        if is_mame:
-            if self.emulator_mame == "flatpak":
-                cmd = ["flatpak", "run", "org.mamedev.MAME", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
-            else:
-                cmd = ["mame", self.rom_path, "-window", "-resolution", "1280x720", "-rompath", rompath_arg]
-        else:
-            cores_base = os.path.expanduser("~/.var/app/org.libretro.RetroArch/config/retroarch/cores/")
-            
-            core_mapping = {
-                "super nintendo": "snes9x_libretro.so",
-                "snes": "snes9x_libretro.so",
-                "nintendo 64": "mupen64plus_next_libretro.so",
-                "n64": "mupen64plus_next_libretro.so",
-                "nintendo ds": "desmume_libretro.so",
-                "nds": "desmume_libretro.so",
-                "nintendo 3ds": "citra_libretro.so",
-                "3ds": "citra_libretro.so",
-                "game boy advance": "mgba_libretro.so",
-                "gba": "mgba_libretro.so",
-                "game boy color": "gambatte_libretro.so",
-                "gbc": "gambatte_libretro.so",
-                "game boy": "gambatte_libretro.so",
-                "nintendo": "fceumm_libretro.so",
-                "nes": "fceumm_libretro.so",
-                "gamecube": "dolphin_libretro.so",
-                "playstation portable": "ppsspp_libretro.so",
-                "psp": "ppsspp_libretro.so",
-                "playstation 2": "pcsx2_libretro.so",
-                "ps2": "pcsx2_libretro.so",
-                "playstation": "pcsx_rearmed_libretro.so",
-                "psx": "pcsx_rearmed_libretro.so",
-                "ps1": "pcsx_rearmed_libretro.so",
-                "saturn": "mednafen_saturn_libretro.so",
-                "dreamcast": "flycast_libretro.so",
-                "atari 2600": "stella_libretro.so",
-                "atari 5200": "a5200_libretro.so",
-                "atari 800": "atari800_libretro.so",
-                "atari lynx": "mednafen_lynx_libretro.so",
-                "commodore - 64": "vice_x64sc_libretro.so",
-                "c64": "vice_x64sc_libretro.so",
-                "amiga": "amiberry_libretro.so",
-                "msx": "bluemsx_libretro.so",
-                "zx spectrum": "fuse_libretro.so",
-                "3do": "opera_libretro.so",
-                "jaguar": "virtualjaguar_libretro.so",
-                "neo geo pocket": "mednafen_ngp_libretro.so",
-                "pc engine": "mednafen_pce_fast_libretro.so",
-                "turbografx": "mednafen_pce_fast_libretro.so",
-                "virtual boy": "mednafen_vb_libretro.so",
-                "wonderswan": "mednafen_wswan_libretro.so",
-                "dos": "dosbox_pure_libretro.so",
-                "scummvm": "scummvm_libretro.so",
-                "arcade": "fbneo_libretro.so",
-                "fbneo": "fbneo_libretro.so"
-            }
-
-            core_name = "genesis_plus_gx_libretro.so"
-            for key, core in core_mapping.items():
-                if key in sub_lower:
-                    core_name = core
-                    break
-
-            core_path = os.path.join(cores_base, core_name)
-
-            if self.emulator_retroarch == "flatpak":
-                cmd = ["flatpak", "run", "org.libretro.RetroArch", "-L", core_path, self.rom_path]
-            else:
-                cmd = ["retroarch", "-L", core_path, self.rom_path]
-
-        try:
-            subprocess.run(cmd)
-        except Exception:
-            pass
-        self.finished.emit()
-
 class SMSLauncher(QWidget):
     def __init__(self):
         super().__init__()
@@ -787,14 +459,11 @@ class SMSLauncher(QWidget):
                 save_settings(self.settings)
 
         self.start_background_worker()
-        self.worker_was_active = os.path.exists(LOCK_FILE)
 
-        self.meta = load_json(META_FILE)
         self.roms_data = list_roms_recursive(self.settings["rom_dir"])
-        self.rom_size = 0
         self.all_item_cache = {}
+        self.meta = {}
         self.emu_thread = None
-        self.selected_emulator = "retroarch"
 
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
@@ -806,7 +475,7 @@ class SMSLauncher(QWidget):
         self.poll_timer.timeout.connect(self.poll_background_updates)
         self.poll_timer.start()
 
-        self.search = SearchBox(self.tr("search_placeholder"))
+        self.search = SearchBox("Cerca gioco...")
         self.search.textChanged.connect(self.on_search_changed)
 
         self.list = QListWidget()
@@ -830,31 +499,19 @@ class SMSLauncher(QWidget):
         side.setObjectName("side")
         side.setLayout(left)
 
-        self.cover = QLabel(self.tr("loading"))
+        self.cover = QLabel("Caricamento...")
         self.cover.setAlignment(Qt.AlignCenter)
         self.cover.setMinimumSize(250, 300)
         self.cover.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.info = QLabel(self.tr("ready_to_play"))
+        self.info = QLabel("Pronto per giocare...")
         self.info.setWordWrap(True)
         self.info.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
-        self.emu_mame_btn = QPushButton("MAME")
-        self.emu_mame_btn.setCheckable(True)
-        self.emu_mame_btn.clicked.connect(lambda: self.set_emulator_choice("mame"))
-
-        self.emu_retro_btn = QPushButton("RetroArch")
-        self.emu_retro_btn.setCheckable(True)
-        self.emu_retro_btn.clicked.connect(lambda: self.set_emulator_choice("retroarch"))
-
-        emulator_layout = QHBoxLayout()
-        emulator_layout.addWidget(self.emu_mame_btn)
-        emulator_layout.addWidget(self.emu_retro_btn)
-
-        self.btn = QPushButton(self.tr("play"))
+        self.btn = QPushButton("Avvia")
         self.btn.clicked.connect(self.launch)
 
-        self.fav_btn = QPushButton(self.tr("favorite"))
+        self.fav_btn = QPushButton("Preferito")
         self.fav_btn.clicked.connect(self.toggle_favorite)
 
         btn_layout = QHBoxLayout()
@@ -865,23 +522,22 @@ class SMSLauncher(QWidget):
         center_layout.setContentsMargins(14, 10, 14, 10)
         center_layout.addWidget(self.cover, 3)
         center_layout.addWidget(self.info, 1)
-        center_layout.addLayout(emulator_layout)
         center_layout.addLayout(btn_layout)
 
         center_container = QWidget()
         center_container.setLayout(center_layout)
 
-        self.library_header_lbl = QLabel()
+        self.library_header_lbl = QLabel("<b>Piattaforme</b>")
         self.folders_list = QListWidget()
         self.folders_list.setIconSize(QSize(DOT, DOT))
+        self.folders_list.setItemDelegate(FolderDelegate(self.folders_list))
         self.folders_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.folders_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
+
         self.folders_list.viewport().setMouseTracking(True)
         self.folders_list.viewport().installEventFilter(self)
 
         self.folders_list.currentItemChanged.connect(lambda *_: self.fill_list())
-        self.folders_list.itemClicked.connect(self.on_folder_item_clicked)
 
         folders_layout = QVBoxLayout()
         folders_layout.setContentsMargins(10, 10, 10, 10)
@@ -911,11 +567,10 @@ class SMSLauncher(QWidget):
 
         status = QWidget()
         status.setObjectName("status")
-        status.setFixedHeight(26)
         sl = QHBoxLayout(status)
-        sl.setContentsMargins(12, 0, 12, 0)
-        self.count_lbl = QLabel(self.tr("ready"))
-        self.prog_lbl = QLabel(self.tr("worker_inactive"))
+        sl.setContentsMargins(12, 4, 12, 4)
+        self.count_lbl = QLabel("Pronto")
+        self.prog_lbl = QLabel("Worker inattivo")
         sl.addWidget(self.count_lbl)
         sl.addSpacing(18)
         sl.addWidget(self.prog_lbl)
@@ -926,7 +581,6 @@ class SMSLauncher(QWidget):
         lay.addWidget(status)
 
         self.setStyleSheet(STYLE)
-        self.update_library_header()
         self.build_item_cache()
         self.update_folders_list()
         self.fill_list()
@@ -941,13 +595,6 @@ class SMSLauncher(QWidget):
         self.gamepad.a_pressed.connect(self.launch)
         self.gamepad.b_pressed.connect(self.toggle_favorite)
         self.gamepad.start()
-
-        if not self.settings["rom_dir"]:
-            self.cover.setText(self.tr("no_rom_folder"))
-            self.info.setText(self.tr("select_rom_start"))
-            QTimer.singleShot(100, self.first_run)
-        else:
-            QTimer.singleShot(200, self.compute_folder_size_async)
 
     def eventFilter(self, obj, event):
         if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick):
@@ -977,63 +624,6 @@ class SMSLauncher(QWidget):
         self.list.style().polish(self.list)
         self.folders_list.style().unpolish(self.folders_list)
         self.folders_list.style().polish(self.folders_list)
-
-    def on_folder_item_clicked(self, item):
-        data = item.data(Qt.UserRole)
-        if not data or not data.startswith("sub_"):
-            return
-        
-        subfolder = data[4:]
-        rect = self.folders_list.visualItemRect(item)
-        click_pos = self.folders_list.viewport().mapFromGlobal(QCursor.pos())
-        
-        if rect.left() <= click_pos.x() <= rect.left() + 32:
-            self.pick_color_for_subfolder(subfolder)
-
-    def pick_color_for_subfolder(self, subfolder):
-        current_hex = get_color_for_brand(subfolder)
-        chosen_color = QColorDialog.getColor(QColor(current_hex), self, f"Scegli colore per {subfolder}")
-        
-        if chosen_color.isValid():
-            new_hex = chosen_color.name()
-            norm_key = _norm_sub(subfolder)
-            
-            SUB_COLOR[subfolder] = new_hex
-            PLATFORM_COLORS[norm_key] = new_hex
-            
-            c_colors = load_json(CUSTOM_COLORS_FILE)
-            if not isinstance(c_colors, dict):
-                c_colors = {}
-            c_colors[norm_key] = new_hex
-            c_colors[subfolder] = new_hex
-            save_custom_colors(c_colors)
-            
-            self.update_folders_list()
-            self.fill_list()
-            curr = self.current_name()
-            if curr:
-                self.show_game()
-
-    def set_emulator_choice(self, choice):
-        self.selected_emulator = choice
-        if choice == "mame":
-            self.emu_mame_btn.setChecked(True)
-            self.emu_retro_btn.setChecked(False)
-            self.emu_mame_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {COLOR_ACCENT};")
-            self.emu_retro_btn.setStyleSheet("")
-        else:
-            self.emu_mame_btn.setChecked(False)
-            self.emu_retro_btn.setChecked(True)
-            self.emu_retro_btn.setStyleSheet(f"background: {SCELTO}; color: #ffffff; border: 1px solid {COLOR_ACCENT};")
-            self.emu_mame_btn.setStyleSheet("")
-
-    def update_emulator_selection(self, unique_key):
-        data = self.all_item_cache.get(unique_key, {})
-        subfolder = data.get("subfolder", "").lower()
-        if "mame" in subfolder or "arcade" in subfolder:
-            self.set_emulator_choice("mame")
-        else:
-            self.set_emulator_choice("retroarch")
 
     def on_pad_up(self):
         if not self.isVisible(): return
@@ -1071,38 +661,6 @@ class SMSLauncher(QWidget):
         self.list.setFocus()
         self.set_gamepad_focus(self.list)
 
-    def tr(self, key):
-        lang = self.settings.get("language", "it")
-        return LANGS.get(lang, LANGS["it"]).get(key, key)
-
-    def set_language(self, lang_code):
-        self.settings["language"] = lang_code
-        save_settings(self.settings)
-        self.retranslate_ui()
-
-    def set_backend_choice(self, backend_type, value):
-        self.settings[backend_type] = value
-        save_settings(self.settings)
-
-    def retranslate_ui(self):
-        new_bar = self.build_menu()
-        self.layout().setMenuBar(new_bar)
-        self.menu_bar_widget.deleteLater()
-        self.menu_bar_widget = new_bar
-
-        self.search.setPlaceholderText(self.tr("search_placeholder"))
-        self.update_library_header()
-        self.update_folders_list()
-        self.fill_list()
-        curr = self.current_name()
-        if curr: self.show_game()
-        self.update_status()
-        self.btn.setText(self.tr("play"))
-        self.update_favorite_button(curr if curr else "")
-
-    def update_library_header(self):
-        self.library_header_lbl.setText(f"<b>{self.tr('library')}</b>")
-
     def start_background_worker(self):
         worker_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "worker.py")
         if os.path.exists(worker_script) and not os.path.exists(LOCK_FILE):
@@ -1111,36 +669,18 @@ class SMSLauncher(QWidget):
             except Exception:
                 pass
 
-    def compute_folder_size_async(self):
-        if self.settings["rom_dir"] and os.path.isdir(self.settings["rom_dir"]):
-            self.rom_size = folder_size(self.settings["rom_dir"])
-            self.update_status()
-
     def poll_background_updates(self):
-        import_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "import")
-        has_imports = os.path.isdir(import_dir) and len(os.listdir(import_dir)) > 0
-        is_locked = os.path.exists(LOCK_FILE)
-
-        if has_imports and not is_locked:
-            self.start_background_worker()
-
         current_roms = list_roms_recursive(self.settings["rom_dir"])
         if current_roms != self.roms_data:
             self.roms_data = current_roms
-            self.meta = load_json(META_FILE)
             self.build_item_cache()
             self.update_folders_list()
             self.fill_list()
-            self.compute_folder_size_async()
-            curr = self.current_name()
-            if curr:
-                self.set_cover(curr)
 
         prog_data = load_json(PROGRESS_FILE)
+        is_locked = os.path.exists(LOCK_FILE)
         if prog_data:
             task = prog_data.get("task", "Elaborazione...")
-            if len(task) > 35:
-                task = task[:32] + "..."
             current = prog_data.get("current", 0)
             total = prog_data.get("total", 0)
             if task == "Completato" and not is_locked:
@@ -1149,7 +689,7 @@ class SMSLauncher(QWidget):
                 pct = int((current / total) * 100) if total > 0 else 0
                 self.prog_lbl.setText(f"<span style='color:{COLOR_WORKER_LABEL};'>Worker:</span> {task} ({current}/{total} - {pct}%)")
         else:
-            txt = self.tr("worker_starting") if is_locked else self.tr("worker_idle")
+            txt = "avvio in corso..." if is_locked else "inattivo o completato"
             self.prog_lbl.setText(f"<span style='color:{COLOR_WORKER_LABEL};'>Worker:</span> {txt}")
 
     def build_item_cache(self):
@@ -1158,10 +698,12 @@ class SMSLauncher(QWidget):
             name, path, subfolder, game_dir = item_tuple
             meta_file = os.path.join(game_dir, "metadata.json")
             m = load_json(meta_file)
-            if not m:
-                m = self.meta.get(name, {})
-            desc = m.get("title", name)
-            year_val = m.get("year", "?")
+            
+            # Pulisce il titolo del gioco per la visualizzazione nella lista
+            raw_title = m.get("title", name)
+            desc = clean_game_title(raw_title)
+            year_val = str(m.get("year", "?")) if m.get("year") else "?"
+            
             unique_key = f"{subfolder}_{name}"
             self.meta[unique_key] = m
             self.all_item_cache[unique_key] = {
@@ -1184,12 +726,12 @@ class SMSLauncher(QWidget):
         favs = set(self.settings.get("favorites", []))
         fav_count = sum(1 for item in self.roms_data if f"{item[2]}_{item[0]}" in favs or item[0] in favs)
 
-        it_all = QListWidgetItem(f"{self.tr('all_games')}  ({total_count})")
+        it_all = QListWidgetItem(f"Tutti i giochi ({total_count})")
         it_all.setIcon(make_dot(COLOR_NEUTRAL))
         it_all.setData(Qt.UserRole, "all")
         self.folders_list.addItem(it_all)
 
-        it_fav = QListWidgetItem(f"{self.tr('favorites')}  ({fav_count})")
+        it_fav = QListWidgetItem(f"Preferiti ({fav_count})")
         it_fav.setIcon(make_dot(COLOR_NEUTRAL))
         it_fav.setData(Qt.UserRole, "favorites")
         self.folders_list.addItem(it_fav)
@@ -1198,7 +740,7 @@ class SMSLauncher(QWidget):
         for sub in subfolders:
             count = sum(1 for _, _, s, _ in self.roms_data if s == sub)
             brand_color = get_color_for_brand(sub)
-            it_sub = QListWidgetItem(f"{sub}  ({count})")
+            it_sub = QListWidgetItem(f"{sub} ({count})")
             it_sub.setIcon(make_dot(brand_color))
             it_sub.setData(Qt.UserRole, f"sub_{sub}")
             self.folders_list.addItem(it_sub)
@@ -1213,85 +755,38 @@ class SMSLauncher(QWidget):
 
         self.folders_list.blockSignals(False)
 
-    def first_run(self):
-        d = QFileDialog.getExistingDirectory(self, self.tr("menu_rom_folder"))
-        if d:
-            self.settings["rom_dir"] = d
-            save_settings(self.settings)
-            self.reload_roms()
-
     def reload_roms(self):
         self.start_background_worker()
-        self.worker_was_active = True
         self.roms_data = list_roms_recursive(self.settings["rom_dir"])
-        self.meta = load_json(META_FILE)
         self.build_item_cache()
         self.update_folders_list()
         self.fill_list()
-        self.compute_folder_size_async()
 
     def build_menu(self):
         bar = QMenuBar()
-        file_menu = bar.addMenu(self.tr("menu_file"))
+        file_menu = bar.addMenu("File")
         
-        a_refresh = QAction(self.tr("menu_refresh"), self)
+        a_refresh = QAction("Aggiorna ROM", self)
         a_refresh.setShortcut(QKeySequence.Refresh)
         a_refresh.triggered.connect(self.reload_roms)
         file_menu.addAction(a_refresh)
 
         file_menu.addSeparator()
-        a_quit = QAction(self.tr("menu_quit"), self)
+        a_quit = QAction("Esci", self)
         a_quit.triggered.connect(self.close)
         file_menu.addAction(a_quit)
 
-        sett = bar.addMenu(self.tr("menu_settings"))
-        a_rom = QAction(self.tr("menu_rom_folder"), self)
-        a_rom.triggered.connect(lambda: self.set_folder("rom_dir"))
+        sett = bar.addMenu("Impostazioni")
+        a_rom = QAction("Cartella ROM...", self)
+        a_rom.triggered.connect(self.set_folder)
         sett.addAction(a_rom)
-        sett.addSeparator()
-
-        backends_menu = sett.addMenu(self.tr("menu_backends"))
-        
-        ra_menu = backends_menu.addMenu("RetroArch")
-        ra_grp = QActionGroup(self)
-        ra_grp.setExclusive(True)
-        cur_ra = self.settings.get("emulator_retroarch", "flatpak")
-        for code, key in (("flatpak", "backend_flatpak"), ("native", "backend_native")):
-            a = QAction(self.tr(key), self, checkable=True)
-            a.setChecked(cur_ra == code)
-            a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_retroarch", c))
-            ra_grp.addAction(a)
-            ra_menu.addAction(a)
-
-        mame_menu = backends_menu.addMenu("MAME")
-        mame_grp = QActionGroup(self)
-        mame_grp.setExclusive(True)
-        cur_mame = self.settings.get("emulator_mame", "flatpak")
-        for code, key in (("flatpak", "backend_flatpak"), ("native", "backend_native")):
-            a = QAction(self.tr(key), self, checkable=True)
-            a.setChecked(cur_mame == code)
-            a.triggered.connect(lambda _c, c=code: self.set_backend_choice("emulator_mame", c))
-            mame_grp.addAction(a)
-            mame_menu.addAction(a)
-
-        sett.addSeparator()
-        lang_menu = sett.addMenu(self.tr("menu_language"))
-        lang_grp = QActionGroup(self)
-        lang_grp.setExclusive(True)
-        current_lang = self.settings.get("language", "it")
-        for l_code, l_label in (("en", "English"), ("it", "Italiano")):
-            a = QAction(l_label, self, checkable=True)
-            a.setChecked(current_lang == l_code)
-            a.triggered.connect(lambda _c, code=l_code: self.set_language(code))
-            lang_grp.addAction(a)
-            lang_menu.addAction(a)
 
         return bar
 
-    def set_folder(self, key):
-        d = QFileDialog.getExistingDirectory(self, self.tr("menu_rom_folder"))
+    def set_folder(self):
+        d = QFileDialog.getExistingDirectory(self, "Seleziona cartella ROM")
         if d:
-            self.settings[key] = d
+            self.settings["rom_dir"] = d
             save_settings(self.settings)
             self.reload_roms()
 
@@ -1309,7 +804,7 @@ class SMSLauncher(QWidget):
     def update_favorite_button(self, unique_key):
         favs = self.settings.get("favorites", [])
         star = "★" if unique_key in favs else "☆"
-        self.fav_btn.setText(f"{star} {self.tr('favorite')}")
+        self.fav_btn.setText(f"{star} Preferito")
 
     def on_search_changed(self):
         self.search_timer.stop()
@@ -1344,12 +839,9 @@ class SMSLauncher(QWidget):
                     continue
 
             if q_tokens:
-                m = self.meta.get(unique_key, self.meta.get(name, {}))
+                m = self.meta.get(unique_key, {})
                 title = m.get("title", name).lower()
-                year = str(m.get("year", ""))
-                region = m.get("region", "").lower()
-                revision = m.get("revision", "").lower()
-                hay = f"{title} {name} {year} {region} {revision} {subfolder}"
+                hay = f"{title} {name} {subfolder}"
                 if not all(t in hay for t in q_tokens):
                     continue
             filtered.append(unique_key)
@@ -1364,7 +856,6 @@ class SMSLauncher(QWidget):
                 
                 it = QListWidgetItem(data["desc"])
                 it.setData(Qt.UserRole, unique_key)
-                it.setIcon(make_dot(dot_color))
                 it.setData(Qt.UserRole + 1, data["year"])
                 it.setData(Qt.UserRole + 2, dot_color)
                 it.setData(Qt.UserRole + 5, subfolder)
@@ -1380,9 +871,7 @@ class SMSLauncher(QWidget):
 
     def update_status(self):
         total_games = len(self.roms_data)
-        parts = [f"<span style='color:{COLOR_NEUTRAL};'>●</span> <span style='color:#ffffff;'>{total_games} {self.tr('games_count')}</span>"]
-        if self.rom_size:
-            parts.append(f"<span style='color:#ffffff;'>{fmt_size(self.rom_size)}</span>")
+        parts = [f"<span style='color:{COLOR_NEUTRAL};'>●</span> <span style='color:#ffffff;'>{total_games} giochi</span>"]
         self.count_lbl.setText(" \u00b7 ".join(parts))
 
     def current_name(self):
@@ -1399,27 +888,21 @@ class SMSLauncher(QWidget):
         rom_path = data.get("path", "")
         filename_with_ext = os.path.basename(rom_path) if rom_path else name
 
-        title = html.escape(m.get("title", name))
-        year = html.escape(str(m.get("year", "?")))
+        title = html.escape(m.get("title", data.get("desc", name)))
         platform = html.escape(m.get("platform", data.get("subfolder", "")))
-        region = html.escape(m.get("region", "World"))
-        revision = html.escape(m.get("revision", "Original"))
+        year_val = html.escape(str(data.get("year", m.get("year", "?"))))
         filename_display = html.escape(filename_with_ext)
 
         rows = [
-            (self.tr("year"), year),
-            (self.tr("platform"), platform),
-            (self.tr("region"), region),
-            (self.tr("revision"), revision),
+            ("Piattaforma", platform),
+            ("Anno", year_val),
             ("ROM", filename_display)
         ]
 
         txt = f"<b>{title}</b>"
         LABEL_COLORS = {
-            self.tr("year"): "#0089cf",
-            self.tr("platform"): "#26a69a",
-            self.tr("region"): "#ff9f0a",
-            self.tr("revision"): "#ff70ef",
+            "Piattaforma": "#26a69a",
+            "Anno": "#e5a50a",
             "ROM": "#b1b1b1"
         }
         for k, v in rows:
@@ -1429,7 +912,6 @@ class SMSLauncher(QWidget):
         self.info.setText(txt)
         self.set_cover(unique_key)
         self.update_favorite_button(unique_key)
-        self.update_emulator_selection(unique_key)
 
     def set_cover(self, unique_key):
         data = self.all_item_cache.get(unique_key, {})
@@ -1438,21 +920,16 @@ class SMSLauncher(QWidget):
         
         if game_dir:
             cover_path = os.path.join(game_dir, "cover.png")
-            none_path = cover_path + ".none"
         else:
             cover_path = os.path.join(IMG_DIR, name + ".png")
-            none_path = cover_path + ".none"
 
         if os.path.exists(cover_path):
             pm = QPixmap(cover_path)
             scaled_pm = pm.scaled(self.cover.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.cover.setPixmap(scaled_pm)
-        elif os.path.exists(none_path):
-            self.cover.clear()
-            self.cover.setText(self.tr("no_images"))
         else:
             self.cover.clear()
-            self.cover.setText(self.tr("loading_bg"))
+            self.cover.setText("Nessuna immagine")
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -1466,20 +943,20 @@ class SMSLauncher(QWidget):
             item = self.roms_data[0]
             unique_key = f"{item[2]}_{item[0]}"
 
-        if unique_key and self.settings["rom_dir"]:
+        if unique_key:
             data = self.all_item_cache.get(unique_key)
-            if data and data.get("path"):
-                if hasattr(self, "gamepad"): self.gamepad.enabled = False
-                rom_path = data["path"]
-                subfolder = data.get("subfolder", "")
-                self.hide()
+            if data and data.get("game_dir"):
+                meta_path = os.path.join(data["game_dir"], "metadata.json")
+                m = load_json(meta_path)
+                exec_command = m.get("exec_command", [])
                 
-                emu_ra = self.settings.get("emulator_retroarch", "flatpak")
-                emu_mame = self.settings.get("emulator_mame", "flatpak")
-
-                self.emu_thread = EmulatorRunnerThread(rom_path, subfolder, self.selected_emulator, emu_ra, emu_mame, _script_dir)
-                self.emu_thread.finished.connect(self.on_game_finished)
-                self.emu_thread.start()
+                if exec_command:
+                    if hasattr(self, "gamepad"): self.gamepad.enabled = False
+                    self.hide()
+                    
+                    self.emu_thread = EmulatorRunnerThread(exec_command)
+                    self.emu_thread.finished.connect(self.on_game_finished)
+                    self.emu_thread.start()
 
     def on_game_finished(self):
         if hasattr(self, "gamepad"): self.gamepad.enabled = True
